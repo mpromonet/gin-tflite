@@ -38,17 +38,9 @@
       .then(r => r.json())
       .then(data => {
         data.forEach(item => {
-          if (item.Type == "line") {
-            context.beginPath()
-            context.strokeStyle  = "rgb("+item.Color.R+","+item.Color.G+","+item.Color.B+")"
-            context.moveTo(item.Left, item.Top)
-            context.lineTo(item.Right, item.Bottom)
+            context.fillText(item.ClassName, item.X1*image.width, item.Y1*image.height);
+            context.rect(item.X1*image.width, item.Y1*image.height, (item.X2 - item.X1)*image.width, (item.Y2 - item.Y1)*image.height)
             context.stroke()
-          } else if (item.Type != "keypoint") {
-            context.fillText(item.ClassID + "(" + item.Confidence + ")", item.Left, item.Top);
-            context.rect(item.Left, item.Top, item.Right - item.Left, item.Bottom - item.Top)
-            context.stroke()
-          }
         })
         context.stroke()
       })      

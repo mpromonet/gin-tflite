@@ -23,14 +23,6 @@ var (
 	labelPath = flag.String("label", "coco.names", "path to label file")
 )
 
-type ssdResult struct {
-	loc   []float32
-	shape []int
-	cls   int
-	thr   float32
-	mat   gocv.Mat
-}
-
 func loadLabels(filename string) ([]string, error) {
 	labels := []string{}
 	f, err := os.Open(filename)
@@ -115,7 +107,8 @@ func omitItems(items []item) []item {
 type item struct {
 	X1, Y1, X2, Y2 float32
 	Score          float32
-	Class          int
+	ClassID        int
+	ClassName      string
 }
 
 func argmax(f []float32) int {
@@ -154,6 +147,14 @@ func createInterpreter(modelPath string) (*tflite.Model, *tflite.Interpreter) {
 		return model, nil
 	}
 	return model, interpreter
+}
+
+func getLabel(labels []string, class int) string {
+	label := "unknown"
+	if class < len(labels) {
+		label = labels[class]
+	}
+	return label
 }
 
 func main() {
@@ -253,13 +254,15 @@ func main() {
 						y1 := loc[idx+1]
 						w := loc[idx+2]
 						h := loc[idx+3]
+						classId := argmax(loc[idx+5 : idx+85])
 						items = append(items, item{
-							X1:    x1 - w/2,
-							Y1:    y1 - h/2,
-							X2:    x1 + w/2,
-							Y2:    y1 + h/2,
-							Score: loc[idx+4],
-							Class: argmax(loc[idx+5 : idx+85]),
+							X1:        x1 - w/2,
+							Y1:        y1 - h/2,
+							X2:        x1 + w/2,
+							Y2:        y1 + h/2,
+							Score:     loc[idx+4],
+							ClassID:   classId,
+							ClassName: getLabel(labels, classId),
 						})
 					}
 				}

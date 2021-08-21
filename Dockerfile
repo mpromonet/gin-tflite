@@ -1,6 +1,6 @@
 FROM ubuntu:20.04 as builder
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates make golang git sudo 
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates cmake make golang git sudo 
 
 WORKDIR /build
 COPY . .

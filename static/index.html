@@ -38,8 +38,8 @@
       .then(r => r.json())
       .then(data => {
         data.forEach(item => {
-            context.fillText(item.ClassName, item.X1*image.width, item.Y1*image.height);
-            context.rect(item.X1*image.width, item.Y1*image.height, (item.X2 - item.X1)*image.width, (item.Y2 - item.Y1)*image.height)
+            context.fillText(item.ClassName, item.X1, item.Y1);
+            context.rect(item.X1, item.Y1, (item.X2 - item.X1), (item.Y2 - item.Y1))
             context.stroke()
         })
         context.stroke()

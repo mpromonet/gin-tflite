@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"sort"
 
 	"github.com/mattn/go-tflite"
 
@@ -37,75 +36,8 @@ func loadLabels(filename string) ([]string, error) {
 	return labels, nil
 }
 
-func min(a, b float32) float32 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b float32) float32 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func calcIntersectionOverUnion(f1, f2 item) float32 {
-	xmin1 := min(f1.X1, f1.X2)
-	ymin1 := min(f1.Y1, f1.Y2)
-	xmax1 := max(f1.X1, f1.X2)
-	ymax1 := max(f1.Y1, f1.Y2)
-	xmin2 := min(f2.X1, f2.X2)
-	ymin2 := min(f2.Y1, f2.Y2)
-	xmax2 := max(f2.X1, f2.X2)
-	ymax2 := max(f2.Y1, f2.Y2)
-
-	area1 := (ymax1 - ymin1) * (xmax1 - xmin1)
-	area2 := (ymax2 - ymin2) * (xmax2 - xmin2)
-	if area1 <= 0 || area2 <= 0 {
-		return 0.0
-	}
-
-	ixmin := max(xmin1, xmin2)
-	iymin := max(ymin1, ymin2)
-	ixmax := min(xmax1, xmax2)
-	iymax := min(ymax1, ymax2)
-
-	iarea := max(iymax-iymin, 0.0) * max(ixmax-ixmin, 0.0)
-
-	return iarea / (area1 + area2 - iarea)
-}
-
-func omitItems(items []item) []item {
-	var result []item
-
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Score < items[j].Score
-	})
-
-	for _, f1 := range items {
-		ignore := false
-		for _, f2 := range result {
-			iou := calcIntersectionOverUnion(f1, f2)
-			if iou >= 0.3 {
-				ignore = true
-				break
-			}
-		}
-
-		if !ignore {
-			result = append(result, f1)
-			if len(result) > 20 {
-				break
-			}
-		}
-	}
-	return result
-}
-
 type item struct {
-	X1, Y1, X2, Y2 float32
+	X1, Y1, X2, Y2 int
 	Score          float32
 	ClassID        int
 	ClassName      string
@@ -245,29 +177,47 @@ func main() {
 				}
 			}
 
+			bboxes := []image.Rectangle{}
+			confidences := []float32{}
+			classes := []int{}
+
 			var items []item
 			if len(loc) != 0 {
 				for i := 0; i < shape[1]; i++ {
 					idx := (i * shape[2])
 					if loc[idx+4] > 0.3 {
-						x1 := loc[idx+0]
-						y1 := loc[idx+1]
-						w := loc[idx+2]
-						h := loc[idx+3]
+						x1 := int(loc[idx+0] * float32(img.Cols()))
+						y1 := int(loc[idx+1] * float32(img.Rows()))
+						w := int(loc[idx+2] * float32(img.Cols()))
+						h := int(loc[idx+3] * float32(img.Rows()))
+						bboxes = append(bboxes, image.Rect(x1-w/2, y1-h/2, x1+w/2, y1+h/2))
+						confidences = append(confidences, loc[idx+4])
 						classId := argmax(loc[idx+5 : idx+85])
-						items = append(items, item{
-							X1:        x1 - w/2,
-							Y1:        y1 - h/2,
-							X2:        x1 + w/2,
-							Y2:        y1 + h/2,
-							Score:     loc[idx+4],
-							ClassID:   classId,
-							ClassName: getLabel(labels, classId),
-						})
+						classes = append(classes, classId)
 					}
 				}
 			}
-			items = omitItems(items)
+			indices := make([]int, len(bboxes))
+			for i := range indices {
+				indices[i] = -1
+			}
+			gocv.NMSBoxes(bboxes, confidences, 0.5, 0.3, indices)
+
+			for _, idx := range indices {
+				if idx > 0 {
+					classID := classes[idx]
+					confidence := confidences[idx]
+					bbox := bboxes[idx]
+					detect := item{ClassID: classID,
+						ClassName: getLabel(labels, classID),
+						Score:     confidence,
+						X1:        bbox.Min.X,
+						Y1:        bbox.Min.Y,
+						X2:        bbox.Max.X,
+						Y2:        bbox.Max.Y}
+					items = append(items, detect)
+				}
+			}
 
 			w.Header().Add("Content-Type", "text/plain")
 			bytes, _ := json.Marshal(items)

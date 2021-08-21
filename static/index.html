@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TFLITE</title>
+</head>
+
+<body>
+  <div id="container">
+  </div>
+</body>
+<script>
+  function onImageLoaded(filename, image, modelname) {
+    var output = document.getElementById('output' + modelname);
+    output.width = image.width;
+    output.height = image.height;
+
+    var context = output.getContext('2d');
+    context.drawImage(image, 0, 0);
+    context.strokeStyle = 'rgb(0,255,0)'
+    context.fillStyle = 'rgb(0,255,0)'
+    context.lineWidth = 2;
+    context.font = '20px serif';
+
+    var dataurl = output.toDataURL("image/jpeg");
+    fetch(dataurl)
+    .then(r => r.blob())
+    .then(blob => {
+      var formData = new FormData();
+      formData.append("file", blob, filename.name);
+
+      fetch('/runmodel?model=' + modelname, {
+        method: 'POST',
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        data.forEach(item => {
+          if (item.Type == "line") {
+            context.beginPath()
+            context.strokeStyle  = "rgb("+item.Color.R+","+item.Color.G+","+item.Color.B+")"
+            context.moveTo(item.Left, item.Top)
+            context.lineTo(item.Right, item.Bottom)
+            context.stroke()
+          } else if (item.Type != "keypoint") {
+            context.fillText(item.ClassID + "(" + item.Confidence + ")", item.Left, item.Top);
+            context.rect(item.Left, item.Top, item.Right - item.Left, item.Bottom - item.Top)
+            context.stroke()
+          }
+        })
+        context.stroke()
+      })      
+    })
+  }
+
+  function onFileLoaded(filename, result, modelname) {
+    var img = new Image();
+    img.src = result;
+    img.onload = () => onImageLoaded(filename, img, modelname)
+  }
+
+  function loadFile(event, modelname) {
+    var filename = event.target.files[0]
+    var reader = new FileReader();
+    reader.onload = () => onFileLoaded(filename, reader.result, modelname)
+    reader.readAsDataURL(filename);
+  }
+
+    var m = "tflite"
+    var div = document.createElement("div")
+    div.appendChild(document.createElement("br"))
+    var input = document.createElement("input")
+    input.type = "file"
+    input.accept = "image/*"
+    input.onchange = function (event) { loadFile(event, m) }
+    div.appendChild(input)
+    var output = document.createElement("canvas")
+    output.id = "output" + m
+    output.width = 0
+    output.height = 0
+    div.appendChild(output)
+    document.getElementById("container").appendChild(div)
+</script>
+
+</html>

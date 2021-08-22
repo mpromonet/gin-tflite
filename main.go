@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	modelPath = flag.String("model", "lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
-	labelPath = flag.String("label", "coco.names", "path to label file")
+	modelPath = flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
+	labelPath = flag.String("label", "models/coco.names", "path to label file")
 )
 
 func loadLabels(filename string) ([]string, error) {
@@ -113,116 +113,112 @@ func main() {
 	// start http server
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	http.HandleFunc("/runmodel", func(w http.ResponseWriter, r *http.Request) {
-		var fileBytes []byte
-		file, handler, err := r.FormFile("file")
-		if err == nil {
-			log.Println("File Size:", handler.Size, " MIME Header:", handler.Header)
-
-			fileBytes, err = ioutil.ReadAll(file)
-			if err != nil {
-				log.Println(err)
-			}
-			file.Close()
-
-			img, err := gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
-			if err != nil {
-				log.Println(err)
-			}
-
-			input := interpreter.GetInputTensor(0)
-			output := interpreter.GetOutputTensor(0)
-			shape := []int{}
-			for idx := 0; idx < output.NumDims(); idx++ {
-				shape = append(shape, output.Dim(idx))
-			}
-			log.Printf("shape: %v", shape)
-
-			resized := gocv.NewMat()
-			if input.Type() == tflite.Float32 {
-				img.ConvertTo(&resized, gocv.MatTypeCV32F)
-				gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
-				ff, err := resized.DataPtrFloat32()
-				if err != nil {
-					fmt.Println(err)
-				}
-				for i := 0; i < len(ff); i++ {
-					ff[i] = (ff[i] - 127.5) / 127.5
-				}
-				copy(input.Float32s(), ff)
-			}
-			resized.Close()
-			status := interpreter.Invoke()
-			log.Printf("status: %v", status)
-			if status != tflite.OK {
-				log.Println("invoke failed")
-				return
-			}
-
-			// convert
-			var loc []float32
-			outputtype := output.Type()
-			log.Printf("type: %v", outputtype)
-			switch outputtype {
-			case tflite.UInt8:
-				f := output.UInt8s()
-				loc = make([]float32, len(f))
-				for i, v := range f {
-					loc[i] = float32(v)
-				}
-			case tflite.Float32:
-				f := output.Float32s()
-				loc = make([]float32, len(f))
-				for i, v := range f {
-					loc[i] = v
-				}
-			}
-
-			bboxes := []image.Rectangle{}
-			confidences := []float32{}
-			classes := []int{}
-
-			var items []item
-			if len(loc) != 0 {
-				for i := 0; i < shape[1]; i++ {
-					idx := (i * shape[2])
-					if loc[idx+4] > 0.3 {
-						x1 := int(loc[idx+0] * float32(img.Cols()))
-						y1 := int(loc[idx+1] * float32(img.Rows()))
-						w := int(loc[idx+2] * float32(img.Cols()))
-						h := int(loc[idx+3] * float32(img.Rows()))
-						bboxes = append(bboxes, image.Rect(x1-w/2, y1-h/2, x1+w/2, y1+h/2))
-						confidences = append(confidences, loc[idx+4])
-						classId := argmax(loc[idx+5 : idx+85])
-						classes = append(classes, classId)
-					}
-				}
-			}
-			indices := make([]int, len(bboxes))
-			for i := range indices {
-				indices[i] = -1
-			}
-			gocv.NMSBoxes(bboxes, confidences, 0.5, 0.3, indices)
-
-			for _, idx := range indices {
-				if idx > 0 {
-					classID := classes[idx]
-					confidence := confidences[idx]
-					bbox := bboxes[idx]
-					detect := item{ClassID: classID,
-						ClassName: getLabel(labels, classID),
-						Score:     confidence,
-						X1:        bbox.Min.X,
-						Y1:        bbox.Min.Y,
-						X2:        bbox.Max.X,
-						Y2:        bbox.Max.Y}
-					items = append(items, detect)
-				}
-			}
-
-			w.Header().Add("Content-Type", "text/plain")
-			bytes, _ := json.Marshal(items)
-			w.Write(bytes)
+		body := r.Body
+		fileBytes, err := ioutil.ReadAll(body)
+		if err != nil {
+			fmt.Println(err)
 		}
+		log.Println("Header:", r.Header, "Body Size: ", len(fileBytes))
+		body.Close()
+
+		img, err := gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
+		if err != nil {
+			log.Println(err)
+		}
+
+		input := interpreter.GetInputTensor(0)
+		output := interpreter.GetOutputTensor(0)
+		shape := []int{}
+		for idx := 0; idx < output.NumDims(); idx++ {
+			shape = append(shape, output.Dim(idx))
+		}
+		log.Printf("shape: %v", shape)
+
+		resized := gocv.NewMat()
+		if input.Type() == tflite.Float32 {
+			img.ConvertTo(&resized, gocv.MatTypeCV32F)
+			gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
+			ff, err := resized.DataPtrFloat32()
+			if err != nil {
+				fmt.Println(err)
+			}
+			for i := 0; i < len(ff); i++ {
+				ff[i] = (ff[i] - 127.5) / 127.5
+			}
+			copy(input.Float32s(), ff)
+		}
+		resized.Close()
+		status := interpreter.Invoke()
+		log.Printf("status: %v", status)
+		if status != tflite.OK {
+			log.Println("invoke failed")
+			return
+		}
+
+		// convert
+		var loc []float32
+		outputtype := output.Type()
+		log.Printf("type: %v", outputtype)
+		switch outputtype {
+		case tflite.UInt8:
+			f := output.UInt8s()
+			loc = make([]float32, len(f))
+			for i, v := range f {
+				loc[i] = float32(v)
+			}
+		case tflite.Float32:
+			f := output.Float32s()
+			loc = make([]float32, len(f))
+			for i, v := range f {
+				loc[i] = v
+			}
+		}
+
+		bboxes := []image.Rectangle{}
+		confidences := []float32{}
+		classes := []int{}
+
+		var items []item
+		if len(loc) != 0 {
+			for i := 0; i < shape[1]; i++ {
+				idx := (i * shape[2])
+				if loc[idx+4] > 0.3 {
+					x1 := int(loc[idx+0] * float32(img.Cols()))
+					y1 := int(loc[idx+1] * float32(img.Rows()))
+					w := int(loc[idx+2] * float32(img.Cols()))
+					h := int(loc[idx+3] * float32(img.Rows()))
+					bboxes = append(bboxes, image.Rect(x1-w/2, y1-h/2, x1+w/2, y1+h/2))
+					confidences = append(confidences, loc[idx+4])
+					classId := argmax(loc[idx+5 : idx+85])
+					classes = append(classes, classId)
+				}
+			}
+		}
+		indices := make([]int, len(bboxes))
+		for i := range indices {
+			indices[i] = -1
+		}
+		gocv.NMSBoxes(bboxes, confidences, 0.5, 0.3, indices)
+
+		for _, idx := range indices {
+			if idx > 0 {
+				classID := classes[idx]
+				confidence := confidences[idx]
+				bbox := bboxes[idx]
+				detect := item{ClassID: classID,
+					ClassName: getLabel(labels, classID),
+					Score:     confidence,
+					X1:        bbox.Min.X,
+					Y1:        bbox.Min.Y,
+					X2:        bbox.Max.X,
+					Y2:        bbox.Max.Y}
+				items = append(items, detect)
+			}
+		}
+
+		w.Header().Add("Content-Type", "text/plain")
+		bytes, _ := json.Marshal(items)
+		w.Write(bytes)
 	})
 	e := http.ListenAndServe(":8080", nil)
 	if e != nil {

@@ -28,12 +28,9 @@
     fetch(dataurl)
     .then(r => r.blob())
     .then(blob => {
-      var formData = new FormData();
-      formData.append("file", blob, filename.name);
-
       fetch('/runmodel?model=' + modelname, {
         method: 'POST',
-        body: formData
+        body: blob
       })
       .then(r => r.json())
       .then(data => {

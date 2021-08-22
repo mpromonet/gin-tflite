@@ -17,11 +17,6 @@ import (
 	"gocv.io/x/gocv"
 )
 
-var (
-	modelPath = flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
-	labelPath = flag.String("label", "models/coco.names", "path to label file")
-)
-
 func loadLabels(filename string) ([]string, error) {
 	labels := []string{}
 	f, err := os.Open(filename)
@@ -98,6 +93,9 @@ func getTensorShape(tensor *tflite.Tensor) []int {
 }
 
 func main() {
+	modelPath := flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
+	labelPath := flag.String("label", "models/coco.names", "path to label file")
+
 	flag.Parse()
 
 	labels, err := loadLabels(*labelPath)
@@ -134,7 +132,7 @@ func main() {
 		}
 
 		input := interpreter.GetInputTensor(0)
-		log.Printf("intput shape: %v", getTensorShape(input))
+		log.Println("input shape:", input.Name(), getTensorShape(input), input.Type(), input.QuantizationParams())
 
 		resized := gocv.NewMat()
 		switch input.Type() {
@@ -166,15 +164,13 @@ func main() {
 		// print output tensor
 		for idx := 0; idx < interpreter.GetOutputTensorCount(); idx++ {
 			tensor := interpreter.GetOutputTensor(idx)
-			log.Println("output:", tensor.Name(), getTensorShape(tensor))
+			log.Println("output:", tensor.Name(), getTensorShape(tensor), tensor.Type(), tensor.QuantizationParams())
 		}
 		// convert output
 		var loc []float32
 		output := interpreter.GetOutputTensor(0)
 		shape := getTensorShape(output)
-		log.Printf("output shape: %v", shape)
 		outputtype := output.Type()
-		log.Printf("type: %v", outputtype)
 		switch outputtype {
 		case tflite.UInt8:
 			f := output.UInt8s()
@@ -194,8 +190,6 @@ func main() {
 		bboxes := []image.Rectangle{}
 		confidences := []float32{}
 		classes := []int{}
-
-		var items []item
 		if len(loc) != 0 {
 			for i := 0; i < shape[1]; i++ {
 				idx := (i * shape[2])
@@ -211,12 +205,15 @@ func main() {
 				}
 			}
 		}
+
+		// NMS
 		indices := make([]int, len(bboxes))
 		for i := range indices {
 			indices[i] = -1
 		}
 		gocv.NMSBoxes(bboxes, confidences, 0.5, 0.3, indices)
 
+		var items []item
 		for _, idx := range indices {
 			if idx > 0 {
 				classID := classes[idx]

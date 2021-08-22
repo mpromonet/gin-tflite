@@ -135,24 +135,27 @@ func extractOutput(output *tflite.Tensor, scoreTh float32, w float32, h float32)
 }
 
 func filterOutput(bboxes []image.Rectangle, confidences []float32, classes []int, scoreTh float32, nmsTh float32, labels []string) []item {
-	indices := make([]int, len(bboxes))
-	for i := range indices {
-		indices[i] = -1
-	}
-	gocv.NMSBoxes(bboxes, confidences, scoreTh, nmsTh, indices)
-
 	var items []item
-	for _, idx := range indices {
-		if idx >= 0 {
-			classID := classes[idx]
-			confidence := confidences[idx]
-			bbox := bboxes[idx]
-			item := item{ClassID: classID,
-				ClassName: getLabel(labels, classID),
-				Score:     confidence,
-				Box:       bbox}
-			log.Println(item)
-			items = append(items, item)
+
+	if len(bboxes) > 0 {
+		indices := make([]int, len(bboxes))
+		for i := range indices {
+			indices[i] = -1
+		}
+		gocv.NMSBoxes(bboxes, confidences, scoreTh, nmsTh, indices)
+
+		for _, idx := range indices {
+			if idx >= 0 {
+				classID := classes[idx]
+				confidence := confidences[idx]
+				bbox := bboxes[idx]
+				item := item{ClassID: classID,
+					ClassName: getLabel(labels, classID),
+					Score:     confidence,
+					Box:       bbox}
+				log.Println(item)
+				items = append(items, item)
+			}
 		}
 	}
 	return items

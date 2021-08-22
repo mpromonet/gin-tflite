@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -183,6 +184,21 @@ func filterOutput(bboxes []image.Rectangle, confidences []float32, classes []int
 	return items
 }
 
+func getImage(r io.Reader) gocv.Mat {
+	// read data
+	fileBytes, err := ioutil.ReadAll(r)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// decode image
+	img, err := gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
+	if err != nil {
+		log.Println(err)
+	}
+	return img
+}
+
 func main() {
 	modelPath := flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
 	labelPath := flag.String("label", "models/coco.names", "path to label file")
@@ -207,19 +223,11 @@ func main() {
 	// start http server
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	http.HandleFunc("/runmodel", func(w http.ResponseWriter, r *http.Request) {
-		body := r.Body
-		fileBytes, err := ioutil.ReadAll(body)
-		if err != nil {
-			fmt.Println(err)
-		}
-		log.Println("Header:", r.Header, "Body Size: ", len(fileBytes))
-		body.Close()
+		log.Println("Header:", r.Header)
 
-		// decode image
-		img, err := gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
-		if err != nil {
-			log.Println(err)
-		}
+		body := r.Body
+		img := getImage(body)
+		body.Close()
 
 		// fill input tensor
 		input := interpreter.GetInputTensor(0)
@@ -231,7 +239,6 @@ func main() {
 		log.Printf("status: %v", status)
 		if status != tflite.OK {
 			log.Println("invoke failed")
-			return
 		}
 
 		// print output tensor
@@ -239,6 +246,7 @@ func main() {
 			tensor := interpreter.GetOutputTensor(idx)
 			log.Println("output:", tensor.Name(), getTensorShape(tensor), tensor.Type(), tensor.QuantizationParams())
 		}
+
 		// convert output
 		output := interpreter.GetOutputTensor(0)
 		bboxes, confidences, classes := extractOutput(output, float32(*scoreTh), float32(img.Cols()), float32(img.Rows()))

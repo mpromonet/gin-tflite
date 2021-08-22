@@ -126,27 +126,27 @@ func main() {
 		}
 
 		input := interpreter.GetInputTensor(0)
-		output := interpreter.GetOutputTensor(0)
-		shape := []int{}
-		for idx := 0; idx < output.NumDims(); idx++ {
-			shape = append(shape, output.Dim(idx))
-		}
-		log.Printf("shape: %v", shape)
 
 		resized := gocv.NewMat()
-		if input.Type() == tflite.Float32 {
+		switch input.Type() {
+		case tflite.UInt8:
+			gocv.Resize(img, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
+			if v, err := resized.DataPtrUint8(); err == nil {
+				copy(input.UInt8s(), v)
+			}
+		case tflite.Float32:
 			img.ConvertTo(&resized, gocv.MatTypeCV32F)
 			gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
-			ff, err := resized.DataPtrFloat32()
-			if err != nil {
-				fmt.Println(err)
+			if v, err := resized.DataPtrFloat32(); err == nil {
+				for i := 0; i < len(v); i++ {
+					v[i] = (v[i] - 127.5) / 127.5
+				}
+				copy(input.Float32s(), v)
 			}
-			for i := 0; i < len(ff); i++ {
-				ff[i] = (ff[i] - 127.5) / 127.5
-			}
-			copy(input.Float32s(), ff)
 		}
 		resized.Close()
+
+		// inference
 		status := interpreter.Invoke()
 		log.Printf("status: %v", status)
 		if status != tflite.OK {
@@ -154,8 +154,14 @@ func main() {
 			return
 		}
 
-		// convert
+		// convert output
 		var loc []float32
+		output := interpreter.GetOutputTensor(0)
+		shape := []int{}
+		for idx := 0; idx < output.NumDims(); idx++ {
+			shape = append(shape, output.Dim(idx))
+		}
+		log.Printf("shape: %v", shape)
 		outputtype := output.Type()
 		log.Printf("type: %v", outputtype)
 		switch outputtype {

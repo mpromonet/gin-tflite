@@ -35,8 +35,8 @@
       .then(r => r.json())
       .then(data => {
         data.forEach(item => {
-            context.fillText(item.ClassName, item.X1, item.Y1);
-            context.rect(item.X1, item.Y1, (item.X2 - item.X1), (item.Y2 - item.Y1))
+            context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
+            context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y -item.Box.Min.Y))
             context.stroke()
         })
         context.stroke()

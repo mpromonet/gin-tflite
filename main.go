@@ -37,10 +37,10 @@ func loadLabels(filename string) ([]string, error) {
 }
 
 type item struct {
-	X1, Y1, X2, Y2 int
-	Score          float32
-	ClassID        int
-	ClassName      string
+	Box       image.Rectangle
+	Score     float32
+	ClassID   int
+	ClassName string
 }
 
 func argmax(f []float32) int {
@@ -208,10 +208,7 @@ func main() {
 				detect := item{ClassID: classID,
 					ClassName: getLabel(labels, classID),
 					Score:     confidence,
-					X1:        bbox.Min.X,
-					Y1:        bbox.Min.Y,
-					X2:        bbox.Max.X,
-					Y2:        bbox.Max.Y}
+					Box:       bbox}
 				items = append(items, detect)
 			}
 		}

@@ -89,6 +89,14 @@ func getLabel(labels []string, class int) string {
 	return label
 }
 
+func getTensorShape(tensor *tflite.Tensor) []int {
+	shape := []int{}
+	for idx := 0; idx < tensor.NumDims(); idx++ {
+		shape = append(shape, tensor.Dim(idx))
+	}
+	return shape
+}
+
 func main() {
 	flag.Parse()
 
@@ -126,6 +134,7 @@ func main() {
 		}
 
 		input := interpreter.GetInputTensor(0)
+		log.Printf("intput shape: %v", getTensorShape(input))
 
 		resized := gocv.NewMat()
 		switch input.Type() {
@@ -154,14 +163,16 @@ func main() {
 			return
 		}
 
+		// print output tensor
+		for idx := 0; idx < interpreter.GetOutputTensorCount(); idx++ {
+			tensor := interpreter.GetOutputTensor(idx)
+			log.Println("output:", tensor.Name(), getTensorShape(tensor))
+		}
 		// convert output
 		var loc []float32
 		output := interpreter.GetOutputTensor(0)
-		shape := []int{}
-		for idx := 0; idx < output.NumDims(); idx++ {
-			shape = append(shape, output.Dim(idx))
-		}
-		log.Printf("shape: %v", shape)
+		shape := getTensorShape(output)
+		log.Printf("output shape: %v", shape)
 		outputtype := output.Type()
 		log.Printf("type: %v", outputtype)
 		switch outputtype {
@@ -178,6 +189,7 @@ func main() {
 				loc[i] = v
 			}
 		}
+		log.Printf("len: %v", len(loc))
 
 		bboxes := []image.Rectangle{}
 		confidences := []float32{}

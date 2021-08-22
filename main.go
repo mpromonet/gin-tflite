@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	_ "image/png"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -144,7 +143,7 @@ func filterOutput(bboxes []image.Rectangle, confidences []float32, classes []int
 
 	var items []item
 	for _, idx := range indices {
-		if idx > 0 {
+		if idx >= 0 {
 			classID := classes[idx]
 			confidence := confidences[idx]
 			bbox := bboxes[idx]

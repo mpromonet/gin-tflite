@@ -14,6 +14,9 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/libopencv*         /usr/local/lib/
 COPY --from=builder /build/tflite_build/*.so          /usr/local/lib/
 COPY --from=builder /build/models                     /app/
+COPY --from=builder /build/static                     /app/
 COPY --from=builder /build/gin-tflite                 /app
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates ffmpeg libgtk-2.0-0 && apt clean && ldconfig
 
 ENTRYPOINT [ "./gin-tflite" ]

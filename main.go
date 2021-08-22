@@ -96,7 +96,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	_ = labels
 
 	model, interpreter := createInterpreter(*modelPath)
 	if interpreter == nil {

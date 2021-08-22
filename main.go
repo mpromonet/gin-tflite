@@ -49,7 +49,6 @@ func argmax(f []float32) (int, float32) {
 }
 
 func createInterpreter(modelPath string) (*tflite.Model, *tflite.Interpreter) {
-
 	model := tflite.NewModelFromFile(modelPath)
 	if model == nil {
 		log.Println("cannot load model")
@@ -89,6 +88,29 @@ func getTensorShape(tensor *tflite.Tensor) []int {
 		shape = append(shape, tensor.Dim(idx))
 	}
 	return shape
+}
+
+func fillInput(input *tflite.Tensor, img gocv.Mat) {
+	wanted_height := input.Dim(1)
+	wanted_width := input.Dim(2)
+	resized := gocv.NewMat()
+	switch input.Type() {
+	case tflite.UInt8:
+		gocv.Resize(img, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
+		if v, err := resized.DataPtrUint8(); err == nil {
+			copy(input.UInt8s(), v)
+		}
+	case tflite.Float32:
+		img.ConvertTo(&resized, gocv.MatTypeCV32F)
+		gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
+		if v, err := resized.DataPtrFloat32(); err == nil {
+			for i := 0; i < len(v); i++ {
+				v[i] = (v[i] - 127.5) / 127.5
+			}
+			copy(input.Float32s(), v)
+		}
+	}
+	resized.Close()
 }
 
 func extractOutput(output *tflite.Tensor, scoreTh float32, w float32, h float32) ([]image.Rectangle, []float32, []int) {
@@ -182,10 +204,6 @@ func main() {
 	defer model.Delete()
 	defer interpreter.Delete()
 
-	input := interpreter.GetInputTensor(0)
-	wanted_height := input.Dim(1)
-	wanted_width := input.Dim(2)
-
 	// start http server
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 	http.HandleFunc("/runmodel", func(w http.ResponseWriter, r *http.Request) {
@@ -197,32 +215,16 @@ func main() {
 		log.Println("Header:", r.Header, "Body Size: ", len(fileBytes))
 		body.Close()
 
+		// decode image
 		img, err := gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
 		if err != nil {
 			log.Println(err)
 		}
 
+		// fill input tensor
 		input := interpreter.GetInputTensor(0)
 		log.Println("input shape:", input.Name(), getTensorShape(input), input.Type(), input.QuantizationParams())
-
-		resized := gocv.NewMat()
-		switch input.Type() {
-		case tflite.UInt8:
-			gocv.Resize(img, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
-			if v, err := resized.DataPtrUint8(); err == nil {
-				copy(input.UInt8s(), v)
-			}
-		case tflite.Float32:
-			img.ConvertTo(&resized, gocv.MatTypeCV32F)
-			gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
-			if v, err := resized.DataPtrFloat32(); err == nil {
-				for i := 0; i < len(v); i++ {
-					v[i] = (v[i] - 127.5) / 127.5
-				}
-				copy(input.Float32s(), v)
-			}
-		}
-		resized.Close()
+		fillInput(input, img)
 
 		// inference
 		status := interpreter.Invoke()

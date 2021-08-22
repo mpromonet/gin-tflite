@@ -38,7 +38,7 @@ type item struct {
 	ClassName string
 }
 
-func argmax(f []float32) int {
+func argmax(f []float32) (int, float32) {
 	r, m := 0, f[0]
 	for i, v := range f {
 		if v > m {
@@ -46,7 +46,7 @@ func argmax(f []float32) int {
 			r = i
 		}
 	}
-	return r
+	return r, m
 }
 
 func createInterpreter(modelPath string) (*tflite.Model, *tflite.Interpreter) {
@@ -92,9 +92,78 @@ func getTensorShape(tensor *tflite.Tensor) []int {
 	return shape
 }
 
+func extractOutput(output *tflite.Tensor, scoreTh float32, w float32, h float32) ([]image.Rectangle, []float32, []int) {
+
+	var loc []float32
+	shape := getTensorShape(output)
+	outputtype := output.Type()
+	switch outputtype {
+	case tflite.UInt8:
+		f := output.UInt8s()
+		loc = make([]float32, len(f))
+		for i, v := range f {
+			loc[i] = float32(v)
+		}
+	case tflite.Float32:
+		f := output.Float32s()
+		loc = make([]float32, len(f))
+		for i, v := range f {
+			loc[i] = v
+		}
+	}
+	log.Printf("len: %v", len(loc))
+
+	bboxes := []image.Rectangle{}
+	confidences := []float32{}
+	classes := []int{}
+	if len(loc) != 0 {
+		for i := 0; i < shape[1]; i++ {
+			idx := (i * shape[2])
+			if loc[idx+4] > scoreTh {
+				x1 := int(loc[idx+0] * w)
+				y1 := int(loc[idx+1] * h)
+				w := int(loc[idx+2] * w)
+				h := int(loc[idx+3] * h)
+				bboxes = append(bboxes, image.Rect(x1-w/2, y1-h/2, x1+w/2, y1+h/2))
+				classId, score := argmax(loc[idx+5 : idx+85])
+				confidences = append(confidences, score)
+				classes = append(classes, classId)
+			}
+		}
+	}
+
+	return bboxes, confidences, classes
+}
+
+func filterOutput(bboxes []image.Rectangle, confidences []float32, classes []int, scoreTh float32, nmsTh float32, labels []string) []item {
+	indices := make([]int, len(bboxes))
+	for i := range indices {
+		indices[i] = -1
+	}
+	gocv.NMSBoxes(bboxes, confidences, scoreTh, nmsTh, indices)
+
+	var items []item
+	for _, idx := range indices {
+		if idx > 0 {
+			classID := classes[idx]
+			confidence := confidences[idx]
+			bbox := bboxes[idx]
+			item := item{ClassID: classID,
+				ClassName: getLabel(labels, classID),
+				Score:     confidence,
+				Box:       bbox}
+			log.Println(item)
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
 func main() {
 	modelPath := flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
 	labelPath := flag.String("label", "models/coco.names", "path to label file")
+	scoreTh := flag.Float64("score", 0.3, "score threshold")
+	nmsTh := flag.Float64("nms", 0.5, "nms threshold")
 
 	flag.Parse()
 
@@ -167,66 +236,13 @@ func main() {
 			log.Println("output:", tensor.Name(), getTensorShape(tensor), tensor.Type(), tensor.QuantizationParams())
 		}
 		// convert output
-		var loc []float32
 		output := interpreter.GetOutputTensor(0)
-		shape := getTensorShape(output)
-		outputtype := output.Type()
-		switch outputtype {
-		case tflite.UInt8:
-			f := output.UInt8s()
-			loc = make([]float32, len(f))
-			for i, v := range f {
-				loc[i] = float32(v)
-			}
-		case tflite.Float32:
-			f := output.Float32s()
-			loc = make([]float32, len(f))
-			for i, v := range f {
-				loc[i] = v
-			}
-		}
-		log.Printf("len: %v", len(loc))
-
-		bboxes := []image.Rectangle{}
-		confidences := []float32{}
-		classes := []int{}
-		if len(loc) != 0 {
-			for i := 0; i < shape[1]; i++ {
-				idx := (i * shape[2])
-				if loc[idx+4] > 0.3 {
-					x1 := int(loc[idx+0] * float32(img.Cols()))
-					y1 := int(loc[idx+1] * float32(img.Rows()))
-					w := int(loc[idx+2] * float32(img.Cols()))
-					h := int(loc[idx+3] * float32(img.Rows()))
-					bboxes = append(bboxes, image.Rect(x1-w/2, y1-h/2, x1+w/2, y1+h/2))
-					confidences = append(confidences, loc[idx+4])
-					classId := argmax(loc[idx+5 : idx+85])
-					classes = append(classes, classId)
-				}
-			}
-		}
+		bboxes, confidences, classes := extractOutput(output, float32(*scoreTh), float32(img.Cols()), float32(img.Rows()))
 
 		// NMS
-		indices := make([]int, len(bboxes))
-		for i := range indices {
-			indices[i] = -1
-		}
-		gocv.NMSBoxes(bboxes, confidences, 0.5, 0.3, indices)
+		items := filterOutput(bboxes, confidences, classes, float32(*scoreTh), float32(*nmsTh), labels)
 
-		var items []item
-		for _, idx := range indices {
-			if idx > 0 {
-				classID := classes[idx]
-				confidence := confidences[idx]
-				bbox := bboxes[idx]
-				detect := item{ClassID: classID,
-					ClassName: getLabel(labels, classID),
-					Score:     confidence,
-					Box:       bbox}
-				items = append(items, detect)
-			}
-		}
-
+		// build answer
 		w.Header().Add("Content-Type", "text/plain")
 		bytes, _ := json.Marshal(items)
 		w.Write(bytes)

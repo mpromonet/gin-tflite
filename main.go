@@ -97,9 +97,14 @@ func fillInput(input *tflite.Tensor, img gocv.Mat) {
 	resized := gocv.NewMat()
 	switch input.Type() {
 	case tflite.UInt8:
-		gocv.Resize(img, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
-		if v, err := resized.DataPtrUint8(); err == nil {
-			copy(input.UInt8s(), v)
+		img.ConvertTo(&resized, gocv.MatTypeCV32F)
+		gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
+		if v, err := resized.DataPtrFloat32(); err == nil {
+			ptr := make([]uint8, len(v))
+			for i := 0; i < len(v); i++ {
+				ptr[i] = uint8(v[i])
+			}
+			input.SetUint8s(ptr)
 		}
 	case tflite.Float32:
 		img.ConvertTo(&resized, gocv.MatTypeCV32F)
@@ -108,7 +113,7 @@ func fillInput(input *tflite.Tensor, img gocv.Mat) {
 			for i := 0; i < len(v); i++ {
 				v[i] = (v[i] - 127.5) / 127.5
 			}
-			copy(input.Float32s(), v)
+			input.SetFloat32s(v)
 		}
 	}
 	resized.Close()
@@ -117,14 +122,14 @@ func fillInput(input *tflite.Tensor, img gocv.Mat) {
 func extractOutput(output *tflite.Tensor, scoreTh float32, w float32, h float32) ([]image.Rectangle, []float32, []int) {
 
 	var loc []float32
-	shape := getTensorShape(output)
 	outputtype := output.Type()
 	switch outputtype {
 	case tflite.UInt8:
 		f := output.UInt8s()
 		loc = make([]float32, len(f))
+		qp := output.QuantizationParams()
 		for i, v := range f {
-			loc[i] = float32(v)
+			loc[i] = (float32(v) - float32(qp.ZeroPoint)) * float32(qp.Scale)
 		}
 	case tflite.Float32:
 		f := output.Float32s()
@@ -133,14 +138,16 @@ func extractOutput(output *tflite.Tensor, scoreTh float32, w float32, h float32)
 			loc[i] = v
 		}
 	}
-	log.Printf("len: %v", len(loc))
 
 	bboxes := []image.Rectangle{}
 	confidences := []float32{}
 	classes := []int{}
 	if len(loc) != 0 {
-		for i := 0; i < shape[1]; i++ {
-			idx := (i * shape[2])
+		totalSize := 1
+		for idx := 0; idx < output.NumDims(); idx++ {
+			totalSize *= output.Dim(idx)
+		}
+		for idx := 0; idx < totalSize; idx += 85 {
 			if loc[idx+4] > scoreTh {
 				x1 := int(loc[idx+0] * w)
 				y1 := int(loc[idx+1] * h)
@@ -196,6 +203,7 @@ func getImage(r io.Reader) gocv.Mat {
 	if err != nil {
 		log.Println(err)
 	}
+	log.Printf("input size:%vx%v", img.Cols(), img.Rows())
 	return img
 }
 

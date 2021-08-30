@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/mattn/go-tflite"
 
@@ -97,12 +98,13 @@ func fillInput(input *tflite.Tensor, img gocv.Mat) {
 	resized := gocv.NewMat()
 	switch input.Type() {
 	case tflite.UInt8:
+		qp := input.QuantizationParams()
 		img.ConvertTo(&resized, gocv.MatTypeCV32F)
 		gocv.Resize(resized, &resized, image.Pt(wanted_width, wanted_height), 0, 0, gocv.InterpolationDefault)
 		if v, err := resized.DataPtrFloat32(); err == nil {
 			ptr := make([]uint8, len(v))
 			for i := 0; i < len(v); i++ {
-				ptr[i] = uint8(v[i])
+				ptr[i] = uint8(v[i]/float32(qp.Scale) + float32(qp.ZeroPoint))
 			}
 			input.SetUint8s(ptr)
 		}
@@ -207,6 +209,48 @@ func getImage(r io.Reader) gocv.Mat {
 	return img
 }
 
+func modelWorker(interpreter *tflite.Interpreter, scoreTh float32, nmsTh float32, labels []string, in chan gocv.Mat, out chan []item) {
+	idleDuration := 10 * time.Millisecond
+	timeout := time.NewTimer(idleDuration)
+	defer timeout.Stop()
+	for {
+		timeout.Reset(idleDuration)
+		select {
+		case img := <-in:
+			if !img.Empty() {
+				// fill input tensor
+				input := interpreter.GetInputTensor(0)
+				log.Println("input shape:", input.Name(), getTensorShape(input), input.Type(), input.QuantizationParams())
+				fillInput(input, img)
+
+				// inference
+				status := interpreter.Invoke()
+				log.Printf("status: %v", status)
+				if status != tflite.OK {
+					log.Println("invoke failed")
+				}
+
+				// print output tensor
+				for idx := 0; idx < interpreter.GetOutputTensorCount(); idx++ {
+					tensor := interpreter.GetOutputTensor(idx)
+					log.Println("output:", tensor.Name(), getTensorShape(tensor), tensor.Type(), tensor.QuantizationParams())
+				}
+
+				// convert output
+				output := interpreter.GetOutputTensor(0)
+				bboxes, confidences, classes := extractOutput(output, scoreTh, float32(img.Cols()), float32(img.Rows()))
+
+				// NMS
+				items := filterOutput(bboxes, confidences, classes, scoreTh, nmsTh, labels)
+
+				out <- items
+				img.Close()
+			}
+		case <-timeout.C:
+		}
+	}
+}
+
 func main() {
 	modelPath := flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
 	labelPath := flag.String("label", "models/coco.names", "path to label file")
@@ -217,55 +261,48 @@ func main() {
 
 	labels, err := loadLabels(*labelPath)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("cannot load labels err:%v", err.Error())
 	}
 
 	model, interpreter := createInterpreter(*modelPath)
 	if interpreter == nil {
-		log.Println("cannot create interpreter")
-		return
+		log.Fatal("cannot create interpreter")
 	}
 	defer model.Delete()
 	defer interpreter.Delete()
 
+	in := make(chan gocv.Mat, 25)
+	out := make(chan []item, 10)
+	go modelWorker(interpreter, float32(*scoreTh), float32(*nmsTh), labels, in, out)
+
 	// start http server
 	http.Handle("/", http.FileServer(http.Dir("./static")))
-	http.HandleFunc("/runmodel", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/invoke", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("Header:", r.Header)
 
 		body := r.Body
 		img := getImage(body)
-		body.Close()
+		defer body.Close()
 
-		// fill input tensor
-		input := interpreter.GetInputTensor(0)
-		log.Println("input shape:", input.Name(), getTensorShape(input), input.Type(), input.QuantizationParams())
-		fillInput(input, img)
-
-		// inference
-		status := interpreter.Invoke()
-		log.Printf("status: %v", status)
-		if status != tflite.OK {
-			log.Println("invoke failed")
+		if len(in) == cap(in) {
+			oldimg := <-in
+			oldimg.Close()
 		}
 
-		// print output tensor
-		for idx := 0; idx < interpreter.GetOutputTensorCount(); idx++ {
-			tensor := interpreter.GetOutputTensor(idx)
-			log.Println("output:", tensor.Name(), getTensorShape(tensor), tensor.Type(), tensor.QuantizationParams())
-		}
+		in <- img
 
-		// convert output
-		output := interpreter.GetOutputTensor(0)
-		bboxes, confidences, classes := extractOutput(output, float32(*scoreTh), float32(img.Cols()), float32(img.Rows()))
-
-		// NMS
-		items := filterOutput(bboxes, confidences, classes, float32(*scoreTh), float32(*nmsTh), labels)
+		items := <-out
+		log.Println("items:", items)
 
 		// build answer
 		w.Header().Add("Content-Type", "text/plain")
-		bytes, _ := json.Marshal(items)
-		w.Write(bytes)
+		bytes, err := json.Marshal(items)
+		if err == nil {
+			w.Write(bytes)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+		}
 	})
 	e := http.ListenAndServe(":8080", nil)
 	if e != nil {

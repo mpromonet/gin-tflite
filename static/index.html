@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>tflite</title>
 </head>
 
@@ -11,12 +10,37 @@
   </div>
 </body>
 <script>
-  function onImageLoaded(output, image, url) {
-    output.width = image.width;
-    output.height = image.height;
+  function draw(context, data) {
+    if (data) {
+      data.forEach(item => {
+        context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
+        context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y))
+        context.stroke()
+      })
+    }
+  }
+
+  function invoke(output, context, input, url, blob, refresh) {
+    fetch(url, {
+      method: 'POST',
+      body: blob
+    })
+      .then(r => r.json())
+      .then(data => draw(context, data))
+      .catch((err) => console.log(err))
+      .finally(() => {
+        if (refresh) {
+          window.requestAnimationFrame(() => process(output, input, url, refresh))
+        }
+      })
+  }
+
+  function process(output, input, url, refresh) {
+    output.width = input.width || input.videoWidth;
+    output.height = input.height || input.videoHeight;
 
     var context = output.getContext('2d');
-    context.drawImage(image, 0, 0);
+    context.drawImage(input, 0, 0);
     context.strokeStyle = 'rgb(0,255,0)'
     context.fillStyle = 'rgb(0,255,0)'
     context.lineWidth = 2;
@@ -24,47 +48,45 @@
 
     var dataurl = output.toDataURL("image/jpeg");
     fetch(dataurl)
-    .then(r => r.blob())
-    .then(blob => {
-      fetch(url, {
-        method: 'POST',
-        body: blob
-      })
-      .then(r => r.json())
-      .then(data => {
-        data.forEach(item => {
-            context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
-            context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y -item.Box.Min.Y))
-            context.stroke()
-        })
-      })      
-    })
+      .then(r => r.blob())
+      .then(blob => invoke(output, context, input, url, blob, refresh))
   }
 
-  function loadFile(output, event, modelname) {
-    var filename = event.target.files[0]
-    var reader = new FileReader();
-    reader.onload = () => {
-      var img = new Image();
-      img.src = reader.result;
-      img.onload = () => onImageLoaded(output, img, '/runmodel?model=' + modelname)
+  function loadFile(output, event, url) {
+    var file = event.target.files[0]
+    if (file.type.startsWith('image/')) {
+      var reader = new FileReader()
+      reader.onload = () => {
+        var img = new Image()
+        img.src = reader.result
+        img.onload = () => process(output, img, url)
+      }
+      reader.readAsDataURL(file);
+    } else if (file.type.startsWith('video/')) {
+      var video = document.createElement('video')
+      video.autoplay = true
+      video.src = window.URL.createObjectURL(file)
+      video.addEventListener('loadeddata', (event) => {
+        window.requestAnimationFrame(() => process(output, video, url, true))
+      });
     }
-    reader.readAsDataURL(filename);
   }
 
   var m = "tflite"
   var div = document.createElement("div")
+  var input = document.createElement("input")
   var output = document.createElement("canvas")
+
+  input.type = "file"
+  input.accept = "image/*,video/*"
+  input.onchange = function (event) { loadFile(output, event, '/invoke') }
   output.id = "output" + m
   output.width = 0
   output.height = 0
-  div.appendChild(output)
-  div.appendChild(document.createElement("br"))
-  var input = document.createElement("input")
-  input.type = "file"
-  input.accept = "image/*"
-  input.onchange = function (event) { loadFile(output, event, m) }
+
   div.appendChild(input)
+  div.appendChild(document.createElement('br'))
+  div.appendChild(output)
   document.getElementById("container").appendChild(div)
 </script>
 

@@ -1,5 +1,5 @@
 gin-tflite: tflite_build/libtensorflowlite_c.so /usr/local/include/opencv4/opencv2/cvconfig.h $(wildcard *.go)
-	CGO_CFLAGS=-I$(PWD)/tensorflow CGO_LDFLAGS="-L$(PWD)/tflite_build -L/usr/local/lib" go build
+	CGO_CFLAGS=-I$(PWD)/tensorflow CGO_LDFLAGS="-L$(PWD)/tflite_build" go build
 
 /usr/local/include/opencv4/opencv2/cvconfig.h:
 	CGO_CFLAGS=-I$(PWD)/tensorflow go get -d

@@ -26,7 +26,9 @@
       body: blob
     })
       .then(r => r.json())
-      .then(data => draw(context, data))
+      .then(data => {
+        draw(context, data)
+      })
       .catch((err) => console.log(err))
       .finally(() => {
         if (refresh) {
@@ -72,6 +74,17 @@
     }
   }
 
+  function captureWebcam(output, event, url) {
+    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+      var video = document.createElement('video')
+      video.srcObject = stream
+      video.autoplay = true
+      video.addEventListener('loadeddata', (event) => { 
+        window.requestAnimationFrame(() => process(output, video, url, true))
+      });
+    });
+  }
+
   fetch("/models")
     .then(r => r.json())
     .then(r => {
@@ -83,13 +96,19 @@
           input.type = "file"
           input.accept = "image/*,video/*"
           input.onchange = function (event) { loadFile(output, event, `/invoke/${m}`) }
+          
           output.id = "output" + m
           output.width = 0
           output.height = 0
 
+          var webcam = document.createElement("button")
+          webcam.innerText = "webcam"
+          webcam.onclick = function (event) { captureWebcam(output, event, `/invoke/${m}`) }
+
           div.appendChild(document.createTextNode(m))
           div.appendChild(document.createElement('br'))
           div.appendChild(input)
+          div.appendChild(webcam)
           div.appendChild(document.createElement('br'))
           div.appendChild(output)
           document.getElementById("container").appendChild(div)

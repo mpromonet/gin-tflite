@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"image"
@@ -13,6 +12,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/gin-contrib/static"
+	"github.com/gin-gonic/gin"
 	"github.com/mattn/go-tflite"
 
 	"gocv.io/x/gocv"
@@ -245,9 +246,35 @@ func modelWorker(interpreter *tflite.Interpreter, scoreTh float32, nmsTh float32
 
 				out <- items
 				img.Close()
+			} else {
+				break
 			}
 		case <-timeout.C:
 		}
+	}
+}
+
+func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
+	log.Println("Header:", c.Request.Header)
+
+	body := c.Request.Body
+	if body != nil {
+		img := getImage(body)
+		defer body.Close()
+
+		if len(in) == cap(in) {
+			oldimg := <-in
+			oldimg.Close()
+		}
+
+		in <- img
+
+		items := <-out
+		log.Println("items:", items)
+
+		c.JSON(http.StatusOK, items)
+	} else {
+		c.JSON(http.StatusBadRequest, "body is empty")
 	}
 }
 
@@ -264,6 +291,9 @@ func main() {
 		log.Fatalf("cannot load labels err:%v", err.Error())
 	}
 
+	router := gin.Default()
+	router.Use(static.Serve("/", static.LocalFile("./static", false)))
+
 	model, interpreter := createInterpreter(*modelPath)
 	if interpreter == nil {
 		log.Fatal("cannot create interpreter")
@@ -274,37 +304,10 @@ func main() {
 	in := make(chan gocv.Mat, 25)
 	out := make(chan []item, 10)
 	go modelWorker(interpreter, float32(*scoreTh), float32(*nmsTh), labels, in, out)
+	router.POST("/invoke/:model", func(c *gin.Context) { invokeHandler(c, in, out) })
 
 	// start http server
-	http.Handle("/", http.FileServer(http.Dir("./static")))
-	http.HandleFunc("/invoke", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Header:", r.Header)
-
-		body := r.Body
-		img := getImage(body)
-		defer body.Close()
-
-		if len(in) == cap(in) {
-			oldimg := <-in
-			oldimg.Close()
-		}
-
-		in <- img
-
-		items := <-out
-		log.Println("items:", items)
-
-		// build answer
-		w.Header().Add("Content-Type", "text/plain")
-		bytes, err := json.Marshal(items)
-		if err == nil {
-			w.Write(bytes)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error()))
-		}
-	})
-	e := http.ListenAndServe(":8080", nil)
+	e := router.Run(":8080")
 	if e != nil {
 		log.Println("Error:", e.Error())
 	}

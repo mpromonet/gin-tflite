@@ -278,8 +278,12 @@ func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
 	}
 }
 
+type Model struct {
+	model  *tflite.Model
+	interp *tflite.Interpreter
+}
+
 func main() {
-	modelPath := flag.String("model", "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite", "path to model file")
 	labelPath := flag.String("label", "models/coco.names", "path to label file")
 	scoreTh := flag.Float64("score", 0.3, "score threshold")
 	nmsTh := flag.Float64("nms", 0.5, "nms threshold")
@@ -294,17 +298,33 @@ func main() {
 	router := gin.Default()
 	router.Use(static.Serve("/", static.LocalFile("./static", false)))
 
-	model, interpreter := createInterpreter(*modelPath)
-	if interpreter == nil {
-		log.Fatal("cannot create interpreter")
+	modelPathArray := flag.Args()
+	if len(modelPathArray) == 0 {
+		modelPathArray = append(modelPathArray, "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite")
 	}
-	defer model.Delete()
-	defer interpreter.Delete()
+	modelList := map[string]Model{}
+	for _, modelPath := range modelPathArray {
 
-	in := make(chan gocv.Mat, 25)
-	out := make(chan []item, 10)
-	go modelWorker(interpreter, float32(*scoreTh), float32(*nmsTh), labels, in, out)
-	router.POST("/invoke/:model", func(c *gin.Context) { invokeHandler(c, in, out) })
+		model, interpreter := createInterpreter(modelPath)
+		if interpreter == nil {
+			log.Println("cannot create interpreter")
+		} else {
+			modelList[modelPath] = Model{model, interpreter}
+
+			in := make(chan gocv.Mat, 25)
+			out := make(chan []item, 10)
+			go modelWorker(interpreter, float32(*scoreTh), float32(*nmsTh), labels, in, out)
+			router.POST("/invoke/"+modelPath, func(c *gin.Context) { invokeHandler(c, in, out) })
+		}
+	}
+
+	router.GET("/models", func(c *gin.Context) {
+		models := []string{}
+		for modelName := range modelList {
+			models = append(models, modelName)
+		}
+		c.JSON(http.StatusOK, models)
+	})
 
 	// start http server
 	e := router.Run(":8080")

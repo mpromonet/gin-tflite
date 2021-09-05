@@ -72,22 +72,29 @@
     }
   }
 
-  var m = "tflite"
-  var div = document.createElement("div")
-  var input = document.createElement("input")
-  var output = document.createElement("canvas")
+  fetch("/models")
+    .then(r => r.json())
+    .then(r => {
+        r.forEach(m => {
+          var div = document.createElement("div")
+          var input = document.createElement("input")
+          var output = document.createElement("canvas")
 
-  input.type = "file"
-  input.accept = "image/*,video/*"
-  input.onchange = function (event) { loadFile(output, event, '/invoke') }
-  output.id = "output" + m
-  output.width = 0
-  output.height = 0
+          input.type = "file"
+          input.accept = "image/*,video/*"
+          input.onchange = function (event) { loadFile(output, event, `/invoke/${m}`) }
+          output.id = "output" + m
+          output.width = 0
+          output.height = 0
 
-  div.appendChild(input)
-  div.appendChild(document.createElement('br'))
-  div.appendChild(output)
-  document.getElementById("container").appendChild(div)
+          div.appendChild(document.createTextNode(m))
+          div.appendChild(document.createElement('br'))
+          div.appendChild(input)
+          div.appendChild(document.createElement('br'))
+          div.appendChild(output)
+          document.getElementById("container").appendChild(div)
+        }) 
+      })
 </script>
 
 </html>

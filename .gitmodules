@@ -1,3 +1,6 @@
 [submodule "tensorflow"]
 	path = tensorflow
 	url = https://github.com/tensorflow/tensorflow
+[submodule "edgetpu"]
+	path = edgetpu
+	url = https://github.com/google-coral/edgetpu.git

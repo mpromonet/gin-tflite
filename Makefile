@@ -1,5 +1,9 @@
-gin-tflite: tflite_build/libtensorflowlite_c.so /usr/local/include/opencv4/opencv2/cvconfig.h $(wildcard *.go)
-	CGO_CFLAGS=-I$(PWD)/tensorflow CGO_LDFLAGS="-L$(PWD)/tflite_build" go build
+gin-tflite: tflite_build/libtensorflowlite_c.so /usr/local/include/opencv4/opencv2/cvconfig.h edgetpu/libedgetpu/direct/k8/libedgetpu.so $(wildcard *.go)
+	CGO_CFLAGS="-I$(PWD)/tensorflow -I$(PWD)/edgetpu/libedgetpu" CGO_LDFLAGS="-L$(PWD)/tflite_build -Wl,-rpath=\$$ORIGIN/tflite_build -L$(PWD)/edgetpu/libedgetpu/direct/k8 -Wl,-rpath=\$$ORIGIN/edgetpu/libedgetpu/direct/k8" go build
+
+edgetpu/libedgetpu/direct/k8/libedgetpu.so:
+	git submodule update --init edgetpu
+	ln -s libedgetpu.so.1 edgetpu/libedgetpu/direct/k8/libedgetpu.so
 
 /usr/local/include/opencv4/opencv2/cvconfig.h:
 	CGO_CFLAGS=-I$(PWD)/tensorflow go get -d

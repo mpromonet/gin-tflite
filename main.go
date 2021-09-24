@@ -15,6 +15,7 @@ import (
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/mattn/go-tflite"
+	"github.com/mattn/go-tflite/delegates/edgetpu"
 
 	"gocv.io/x/gocv"
 )
@@ -59,9 +60,26 @@ func createInterpreter(modelPath string) (*tflite.Model, *tflite.Interpreter) {
 	}
 
 	options := tflite.NewInterpreterOptions()
+	defer options.Delete()
 
 	options.SetNumThread(4)
-	defer options.Delete()
+
+	// add TPU
+	devices, err := edgetpu.DeviceList()
+	if err != nil {
+		log.Printf("Could not get EdgeTPU devices: %v", err)
+	}
+	if len(devices) == 0 {
+		log.Println("No edge TPU devices found")
+	} else {
+		edgetpuVersion, err := edgetpu.Version()
+		if err != nil {
+			log.Printf("Could not get EdgeTPU version: %v", err)
+		}
+		fmt.Printf("EdgeTPU Version: %s\n", edgetpuVersion)
+
+		options.AddDelegate(edgetpu.New(devices[0]))
+	}
 
 	interpreter := tflite.NewInterpreter(model, options)
 	if interpreter == nil {

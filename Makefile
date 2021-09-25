@@ -13,7 +13,7 @@ edgetpu/libedgetpu/direct/k8/libedgetpu.so.1:
 
 lib/libedgetpu.so: lib edgetpu/libedgetpu/direct/k8/libedgetpu.so.1
 	cp edgetpu/libedgetpu/direct/k8/libedgetpu.so.1 lib/
-	ln -s libedgetpu.so.1 lib/libedgetpu.so
+	ln -fs libedgetpu.so.1 lib/libedgetpu.so
 
 tflite_build:
 	mkdir -p tflite_build
@@ -21,7 +21,7 @@ tflite_build:
 tflite_build/Makefile: tflite_build
 	git submodule update --init tensorflow
 
-tflite_build/libtensorflowlite_c.so: lib tflite_build/Makefile
+tflite_build/libtensorflowlite_c.so: tflite_build/Makefile
 	cd tflite_build && cmake ../tensorflow/tensorflow/lite/c && make 
 
 lib/libtensorflowlite_c.so: lib tflite_build/libtensorflowlite_c.so

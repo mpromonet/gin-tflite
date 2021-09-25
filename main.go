@@ -325,7 +325,7 @@ func main() {
 
 		model, interpreter := createInterpreter(modelPath)
 		if interpreter == nil {
-			log.Println("cannot create interpreter")
+			log.Printf("cannot create interpreter model:%v", modelPath)
 		} else {
 			modelList[modelPath] = Model{model, interpreter}
 

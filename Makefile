@@ -15,7 +15,7 @@ tflite_build/Makefile: tflite_build
 	git submodule update --init tensorflow
 
 tflite_build/libtensorflowlite_c.so: tflite_build/Makefile
-#	cd tflite_build && cmake ../tensorflow/tensorflow/lite/c && make 
+	cd tflite_build && cmake ../tensorflow/tensorflow/lite/c && make 
 
 lib/libtensorflowlite_c.so: lib tflite_build/libtensorflowlite_c.so
 	cp tflite_build/libtensorflowlite_c.so lib/

@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
+    - name: pkg
+      run: |
+        echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" > /etc/apt/sources.list.d/coral-edgetpu.list 
+        curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add - 
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libedgetpu-dev
+
     - name: Set up Go 1.x
       uses: actions/setup-go@v2
       with:

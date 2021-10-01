@@ -13,7 +13,6 @@ import (
 
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
-	"github.com/mattn/go-tflite"
 	"github.com/mattn/go-tflite/delegates/edgetpu"
 
 	"gocv.io/x/gocv"
@@ -38,33 +37,6 @@ type item struct {
 	Score     float32
 	ClassID   int
 	ClassName string
-}
-
-func argmax(f []float32) (int, float32) {
-	r, m := 0, f[0]
-	for i, v := range f {
-		if v > m {
-			m = v
-			r = i
-		}
-	}
-	return r, m
-}
-
-func getLabel(labels []string, class int) string {
-	label := "unknown"
-	if class < len(labels) {
-		label = labels[class]
-	}
-	return label
-}
-
-func getTensorShape(tensor *tflite.Tensor) []int {
-	shape := []int{}
-	for idx := 0; idx < tensor.NumDims(); idx++ {
-		shape = append(shape, tensor.Dim(idx))
-	}
-	return shape
 }
 
 func getImage(r io.Reader) gocv.Mat {

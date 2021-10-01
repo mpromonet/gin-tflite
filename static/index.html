@@ -21,14 +21,9 @@
   }
 
   function invoke(output, context, input, url, blob, refresh) {
-    fetch(url, {
-      method: 'POST',
-      body: blob
-    })
+    fetch(url, { method: 'POST', body: blob })
       .then(r => r.json())
-      .then(data => {
-        draw(context, data)
-      })
+      .then(data => draw(context, data))
       .catch((err) => console.log(err))
       .finally(() => {
         if (refresh) {
@@ -54,7 +49,7 @@
       .then(blob => invoke(output, context, input, url, blob, refresh))
   }
 
-  function loadFile(output, event, url) {
+  function loadFile(source, output, event, url) {
     var file = event.target.files[0]
     if (file.type.startsWith('image/')) {
       var reader = new FileReader()
@@ -65,23 +60,17 @@
       }
       reader.readAsDataURL(file);
     } else if (file.type.startsWith('video/')) {
-      var video = document.createElement('video')
-      video.autoplay = true
-      video.src = window.URL.createObjectURL(file)
-      video.addEventListener('loadeddata', (event) => {
-        window.requestAnimationFrame(() => process(output, video, url, true))
-      });
+      source.autoplay = true
+      source.src = window.URL.createObjectURL(file)
+      source.addEventListener('loadeddata', () => process(output, source, url, true))
     }
   }
 
-  function captureWebcam(output, event, url) {
+  function captureWebcam(source, output, event, url) {
     navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      var video = document.createElement('video')
-      video.srcObject = stream
-      video.autoplay = true
-      video.addEventListener('loadeddata', (event) => { 
-        window.requestAnimationFrame(() => process(output, video, url, true))
-      });
+      source.srcObject = stream
+      source.autoplay = true
+      source.addEventListener('loadeddata', () => process(output, source, url, true))
     });
   }
 
@@ -90,20 +79,17 @@
     .then(r => {
         r.forEach(m => {
           var div = document.createElement("div")
-          var input = document.createElement("input")
+          var source = document.createElement("video")
           var output = document.createElement("canvas")
 
+          var input = document.createElement("input")
           input.type = "file"
           input.accept = "image/*,video/*"
-          input.onchange = function (event) { loadFile(output, event, `/invoke/${m}`) }
-          
-          output.id = "output" + m
-          output.width = 0
-          output.height = 0
+          input.onchange = (event) => loadFile(source, output, event, `/invoke/${m}`)
 
           var webcam = document.createElement("button")
           webcam.innerText = "webcam"
-          webcam.onclick = function (event) { captureWebcam(output, event, `/invoke/${m}`) }
+          webcam.onclick = (event) => captureWebcam(source, output, event, `/invoke/${m}`)
 
           div.appendChild(document.createTextNode(m))
           div.appendChild(document.createElement('br'))

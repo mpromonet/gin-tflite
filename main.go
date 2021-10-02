@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
@@ -81,7 +82,7 @@ func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
 
 func main() {
 	labelPath := flag.String("label", "models/coco.names", "path to label file")
-	scoreTh := flag.Float64("score", 0.3, "score threshold")
+	scoreTh := flag.Float64("score", 0.8, "score threshold")
 	nmsTh := flag.Float64("nms", 0.5, "nms threshold")
 
 	flag.Parse()
@@ -125,6 +126,7 @@ func main() {
 		for modelName := range modelList {
 			models = append(models, modelName)
 		}
+		sort.Strings(models)
 		c.JSON(http.StatusOK, models)
 	})
 

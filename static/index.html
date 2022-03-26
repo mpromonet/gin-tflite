@@ -10,7 +10,17 @@
   </div>
 </body>
 <script>
-  function draw(context, data) {
+  function draw(output, input, data) {
+    output.width = input.width || input.videoWidth;
+    output.height = input.height || input.videoHeight;
+
+    var context = output.getContext('2d');
+    context.strokeStyle = 'rgb(0,255,0)'
+    context.fillStyle = 'rgb(0,255,0)'
+    context.lineWidth = 2;
+    context.font = '20px serif';
+    context.drawImage(input, 0, 0);
+
     if (data) {
       data.forEach(item => {
         context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
@@ -20,57 +30,65 @@
     }
   }
 
-  function invoke(output, context, input, url, blob, refresh) {
+  function invoke(output, input, url, blob, refresh) {
     fetch(url, { method: 'POST', body: blob })
       .then(r => r.json())
-      .then(data => draw(context, data))
+      .then(data => draw(output, input, data))
       .catch((err) => console.log(err))
       .finally(() => {
-        if (refresh) {
-          window.requestAnimationFrame(() => process(output, input, url, refresh))
+        if (refresh && !input.paused) {
+          requestAnimationFrame(() => process(output, input, url, refresh));
         }
       })
   }
 
   function process(output, input, url, refresh) {
-    output.width = input.width || input.videoWidth;
-    output.height = input.height || input.videoHeight;
+    var img = document.createElement("canvas");
+    img.width = input.width || input.videoWidth;
+    img.height = input.height || input.videoHeight;
+    img.getContext('2d').drawImage(input, 0, 0);
 
-    var context = output.getContext('2d');
-    context.drawImage(input, 0, 0);
-    context.strokeStyle = 'rgb(0,255,0)'
-    context.fillStyle = 'rgb(0,255,0)'
-    context.lineWidth = 2;
-    context.font = '20px serif';
-
-    var dataurl = output.toDataURL("image/jpeg");
+    var dataurl = img.toDataURL("image/jpeg");
     fetch(dataurl)
       .then(r => r.blob())
-      .then(blob => invoke(output, context, input, url, blob, refresh))
+      .then(blob => invoke(output, input, url, blob, refresh));
+  }
+
+  function stopVideo(source) {
+    source.pause();
+    if (source.srcObject) {
+      source.srcObject.getTracks().forEach(track => track.stop());
+      source.srcObject = null;      
+    }
+    if (source.src) {
+      source.src = null;
+    }
   }
 
   function loadFile(source, output, event, url) {
-    var file = event.target.files[0]
+    stopVideo(source);
+    var file = event.target.files[0];
     if (file.type.startsWith('image/')) {
-      var reader = new FileReader()
+      var reader = new FileReader();
       reader.onload = () => {
-        var img = new Image()
-        img.src = reader.result
-        img.onload = () => process(output, img, url)
+        var img = new Image();
+        img.src = reader.result;
+        img.onload = () => process(output, img, url);
       }
       reader.readAsDataURL(file);
     } else if (file.type.startsWith('video/')) {
-      source.autoplay = true
-      source.src = window.URL.createObjectURL(file)
-      source.addEventListener('loadeddata', () => process(output, source, url, true))
+      source.autoplay = true;
+      source.src = window.URL.createObjectURL(file);
+      source.addEventListener('loadeddata', () => process(output, source, url, true));
     }
   }
 
   function captureWebcam(source, output, event, url) {
+    stopVideo(source);
     navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
-      source.srcObject = stream
-      source.autoplay = true
-      source.addEventListener('loadeddata', () => process(output, source, url, true))
+      source.srcObject = stream;
+      source.autoplay = true;
+      source.addEventListener('loadeddata', () => process(output, source, url, true));
     });
   }
 

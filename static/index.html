@@ -58,7 +58,7 @@
     source.pause();
     if (source.srcObject) {
       source.srcObject.getTracks().forEach(track => track.stop());
-      source.srcObject = null;      
+      source.srcObject = null;
     }
     if (source.src) {
       source.src = null;
@@ -92,32 +92,46 @@
     });
   }
 
+  function createWebCamButton(model, source, output) {
+    var webcam = document.createElement("button");
+    webcam.innerText = "webcam";
+    webcam.onclick = (event) => captureWebcam(source, output, event, `/invoke/${model}`);
+    return webcam;
+  }
+
+  function createFileButton(model, source, output) {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,video/*";
+    input.onchange = (event) => loadFile(source, output, event, `/invoke/${model}`);
+    return input;
+  }
+
+  function createStopButton(source) {
+    var button = document.createElement("button");
+    button.innerText = "stop";
+    button.onclick = (event) => stopVideo(source);
+    return button;
+  }
+
   fetch("/models")
     .then(r => r.json())
     .then(r => {
-        r.forEach(m => {
-          var div = document.createElement("div")
-          var source = document.createElement("video")
-          var output = document.createElement("canvas")
+      r.forEach(model => {
+        var div = document.createElement("div")
+        var source = document.createElement("video")
+        var output = document.createElement("canvas")
 
-          var input = document.createElement("input")
-          input.type = "file"
-          input.accept = "image/*,video/*"
-          input.onchange = (event) => loadFile(source, output, event, `/invoke/${m}`)
-
-          var webcam = document.createElement("button")
-          webcam.innerText = "webcam"
-          webcam.onclick = (event) => captureWebcam(source, output, event, `/invoke/${m}`)
-
-          div.appendChild(document.createTextNode(m))
-          div.appendChild(document.createElement('br'))
-          div.appendChild(input)
-          div.appendChild(webcam)
-          div.appendChild(document.createElement('br'))
-          div.appendChild(output)
-          document.getElementById("container").appendChild(div)
-        }) 
+        div.appendChild(document.createTextNode(model))
+        div.appendChild(document.createElement('br'))
+        div.appendChild(createFileButton(model, source, output))
+        div.appendChild(createWebCamButton(model, source, output))
+        div.appendChild(createStopButton(source))
+        div.appendChild(document.createElement('br'))
+        div.appendChild(output)
+        document.getElementById("container").appendChild(div)
       })
+    })
 </script>
 
 </html>

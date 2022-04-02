@@ -10,7 +10,9 @@
   </div>
 </body>
 <script>
-  function draw(output, input, data) {
+  let current = Date.now(),fps=0;
+
+  function draw(output, input, span, data, refresh) {
     output.width = input.width || input.videoWidth;
     output.height = input.height || input.videoHeight;
 
@@ -28,21 +30,29 @@
         context.stroke()
       })
     }
+    if (refresh) {
+      let now = Date.now()
+      fps = Math.round(1000 / (now - current))
+      current = now
+      span.innerText = fps + " fps"
+    } else {
+      span.innerText = ""
+    }
   }
 
-  function invoke(output, input, url, blob, refresh) {
+  function invoke(output, input, span, url, blob, refresh) {
     fetch(url, { method: 'POST', body: blob })
       .then(r => r.json())
-      .then(data => draw(output, input, data))
+      .then(data => draw(output, input, span, data, refresh))
       .catch((err) => console.log(err))
       .finally(() => {
         if (refresh && !input.paused) {
-          requestAnimationFrame(() => process(output, input, url, refresh));
+          requestAnimationFrame(() => process(output, input, span, url, refresh));
         }
       })
   }
 
-  function process(output, input, url, refresh) {
+  function process(output, input, span, url, refresh) {
     var img = document.createElement("canvas");
     img.width = input.width || input.videoWidth;
     img.height = input.height || input.videoHeight;
@@ -51,10 +61,11 @@
     var dataurl = img.toDataURL("image/jpeg");
     fetch(dataurl)
       .then(r => r.blob())
-      .then(blob => invoke(output, input, url, blob, refresh));
+      .then(blob => invoke(output, input, span, url, blob, refresh));
   }
 
-  function stopVideo(source) {
+  function stopVideo(source, span) {
+    span.innerText = "";
     source.pause();
     if (source.srcObject) {
       source.srcObject.getTracks().forEach(track => track.stop());
@@ -65,15 +76,15 @@
     }
   }
 
-  function loadFile(source, output, event, url) {
-    stopVideo(source);
+  function loadFile(source, output, span, event, url) {
+    stopVideo(source, span);
     var file = event.target.files[0];
     if (file.type.startsWith('image/')) {
       var reader = new FileReader();
       reader.onload = () => {
         var img = new Image();
         img.src = reader.result;
-        img.onload = () => process(output, img, url);
+        img.onload = () => process(output, img, span, url);
       }
       reader.readAsDataURL(file);
     } else if (file.type.startsWith('video/')) {
@@ -83,34 +94,34 @@
     }
   }
 
-  function captureWebcam(source, output, event, url) {
-    stopVideo(source);
+  function captureWebcam(source, output, span, event, url) {
+    stopVideo(source, span);
     navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
       source.srcObject = stream;
       source.autoplay = true;
-      source.addEventListener('loadeddata', () => process(output, source, url, true));
+      source.addEventListener('loadeddata', () => process(output, source, span, url, true));
     });
   }
 
-  function createWebCamButton(model, source, output) {
+  function createWebCamButton(model, source, output, span) {
     var webcam = document.createElement("button");
     webcam.innerText = "webcam";
-    webcam.onclick = (event) => captureWebcam(source, output, event, `/invoke/${model}`);
+    webcam.onclick = (event) => captureWebcam(source, output, span, event, `/invoke/${model}`);
     return webcam;
   }
 
-  function createFileButton(model, source, output) {
+  function createFileButton(model, source, output, span) {
     var input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*,video/*";
-    input.onchange = (event) => loadFile(source, output, event, `/invoke/${model}`);
+    input.onchange = (event) => loadFile(source, output, span, event, `/invoke/${model}`);
     return input;
   }
 
-  function createStopButton(source) {
+  function createStopButton(source, span) {
     var button = document.createElement("button");
     button.innerText = "stop";
-    button.onclick = (event) => stopVideo(source);
+    button.onclick = (event) => stopVideo(source, span);
     return button;
   }
 
@@ -121,14 +132,17 @@
         var div = document.createElement("div")
         var source = document.createElement("video")
         var output = document.createElement("canvas")
+        var span = document.createElement("span")
 
         div.appendChild(document.createTextNode(model))
         div.appendChild(document.createElement('br'))
-        div.appendChild(createFileButton(model, source, output))
-        div.appendChild(createWebCamButton(model, source, output))
-        div.appendChild(createStopButton(source))
+        div.appendChild(createFileButton(model, source, output, span))
+        div.appendChild(createWebCamButton(model, source, output, span))
+        div.appendChild(createStopButton(source, span))
         div.appendChild(document.createElement('br'))
         div.appendChild(output)
+        div.appendChild(document.createElement('br'))
+        div.appendChild(span)
         document.getElementById("container").appendChild(div)
       })
     })

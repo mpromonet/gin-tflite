@@ -65,10 +65,13 @@ func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
 		defer body.Close()
 
 		if len(in) == cap(in) {
-			oldimg := <-in
-			oldimg.Close()
+			log.Println("input queue full, drop oldest image")
+			select {
+			case oldimg := <-in:
+				oldimg.Close()
+			default:
+			}
 		}
-
 		in <- img
 
 		items := <-out
@@ -115,7 +118,7 @@ func main() {
 			modelList[modelPath] = model
 
 			in := make(chan gocv.Mat, 25)
-			out := make(chan []item, 10)
+			out := make(chan []item)
 			go model.modelWorker(float32(*scoreTh), float32(*nmsTh), labels, in, out)
 			router.POST("/invoke/"+modelPath, func(c *gin.Context) { invokeHandler(c, in, out) })
 		}

@@ -88,9 +88,9 @@
       }
       reader.readAsDataURL(file);
     } else if (file.type.startsWith('video/')) {
-      source.autoplay = true;
       source.src = window.URL.createObjectURL(file);
-      source.addEventListener('loadeddata', () => process(output, source, url, true));
+      source.addEventListener('loadeddata', () => process(output, source, span, url, true));
+      source.play();
     }
   }
 
@@ -98,8 +98,8 @@
     stopVideo(source, span);
     navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
       source.srcObject = stream;
-      source.autoplay = true;
       source.addEventListener('loadeddata', () => process(output, source, span, url, true));
+      source.play();
     });
   }
 

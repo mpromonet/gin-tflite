@@ -40,20 +40,23 @@ type item struct {
 	ClassName string
 }
 
-func getImage(r io.Reader) gocv.Mat {
+func getImage(r io.Reader) (gocv.Mat, error) {
+	var img gocv.Mat
 	// read data
 	fileBytes, err := ioutil.ReadAll(r)
 	if err != nil {
 		fmt.Println(err)
+	} else {
+		// decode image
+		img, err = gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
+		if err != nil {
+			log.Println(err)
+		} else {
+			log.Printf("input size:%vx%v", img.Cols(), img.Rows())
+		}
 	}
 
-	// decode image
-	img, err := gocv.IMDecode(fileBytes, gocv.IMReadUnchanged)
-	if err != nil {
-		log.Println(err)
-	}
-	log.Printf("input size:%vx%v", img.Cols(), img.Rows())
-	return img
+	return img, err
 }
 
 func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
@@ -61,23 +64,27 @@ func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
 
 	body := c.Request.Body
 	if body != nil {
-		img := getImage(body)
+		img, err := getImage(body)
 		defer body.Close()
 
-		if len(in) == cap(in) {
-			log.Println("input queue full, drop oldest image")
-			select {
-			case oldimg := <-in:
-				oldimg.Close()
-			default:
+		if err == nil {
+			if len(in) == cap(in) {
+				log.Println("input queue full, drop oldest image")
+				select {
+				case oldimg := <-in:
+					oldimg.Close()
+				default:
+				}
 			}
+			in <- img
+
+			items := <-out
+			log.Println("items:", items)
+
+			c.JSON(http.StatusOK, items)
+		} else {
+			c.JSON(http.StatusBadRequest, err.Error())
 		}
-		in <- img
-
-		items := <-out
-		log.Println("items:", items)
-
-		c.JSON(http.StatusOK, items)
 	} else {
 		c.JSON(http.StatusBadRequest, "body is empty")
 	}

@@ -118,7 +118,7 @@ func main() {
 	modelList := map[string]*Model{}
 	for _, modelPath := range modelPathArray {
 
-		model := NewModel(modelPath)
+		model := NewModel(modelPath, YoloPostProcessing{})
 		if model == nil {
 			log.Printf("cannot create interpreter model:%v", modelPath)
 		} else {

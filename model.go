@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/mattn/go-tflite"
@@ -16,7 +17,7 @@ type Model struct {
 	postproc PostProcessing
 }
 
-func NewModel(modelPath string, postproc PostProcessing) *Model {
+func NewModel(modelPath string) *Model {
 	model := tflite.NewModelFromFile(modelPath)
 	if model == nil {
 		log.Println("cannot load model")
@@ -50,6 +51,17 @@ func NewModel(modelPath string, postproc PostProcessing) *Model {
 		log.Print("allocate failed")
 		return nil
 	}
+
+	// get postproc
+	postName := filepath.Base(filepath.Dir(modelPath))
+	log.Println(postName)
+	var postproc PostProcessing
+	if postName == "ssd" {
+		postproc = &SsdPostProcessing{}
+	} else {
+		postproc = &YoloPostProcessing{}
+	}
+
 	return &Model{model, interpreter, postproc}
 }
 
@@ -157,17 +169,7 @@ func (m *Model) modelWorker(scoreTh float32, nmsTh float32, labels []string, in 
 				}
 
 				// convert output
-				bboxes := []image.Rectangle{}
-				confidences := []float32{}
-				classes := []int{}
-				for idx := 0; idx < m.interp.GetOutputTensorCount(); idx++ {
-					output := m.interp.GetOutputTensor(idx)
-					log.Println("output:", output.Name(), getTensorShape(output), output.Type(), output.QuantizationParams())
-					bboxes_, confidences_, classes_ := m.postproc.extractBoxes(output, scoreTh, float32(img.Cols()), float32(img.Rows()))
-					bboxes = append(bboxes, bboxes_...)
-					confidences = append(confidences, confidences_...)
-					classes = append(classes, classes_...)
-				}
+				bboxes, confidences, classes := m.postproc.extractResult(m.interp, scoreTh, float32(img.Cols()), float32(img.Rows()))
 
 				// NMS
 				items := filterOutput(bboxes, confidences, classes, scoreTh, nmsTh, labels)

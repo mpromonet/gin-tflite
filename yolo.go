@@ -2,6 +2,7 @@ package main
 
 import (
 	"image"
+	"log"
 	"math"
 
 	"github.com/mattn/go-tflite"
@@ -11,7 +12,22 @@ type YoloPostProcessing struct {
 	PostProcessing
 }
 
-func (y YoloPostProcessing) extractBoxes(output *tflite.Tensor, scoreTh float32, width float32, height float32) ([]image.Rectangle, []float32, []int) {
+func (p YoloPostProcessing) extractResult(interp *tflite.Interpreter, scoreTh float32, width float32, height float32) ([]image.Rectangle, []float32, []int) {
+	bboxes := []image.Rectangle{}
+	confidences := []float32{}
+	classes := []int{}
+	for idx := 0; idx < interp.GetOutputTensorCount(); idx++ {
+		output := interp.GetOutputTensor(idx)
+		log.Println("output:", output.Name(), getTensorShape(output), output.Type(), output.QuantizationParams())
+		bboxes_, confidences_, classes_ := p.extractBoxesTensor(output, scoreTh, width, height)
+		bboxes = append(bboxes, bboxes_...)
+		confidences = append(confidences, confidences_...)
+		classes = append(classes, classes_...)
+	}
+	return bboxes, confidences, classes
+}
+
+func (y YoloPostProcessing) extractBoxesTensor(output *tflite.Tensor, scoreTh float32, width float32, height float32) ([]image.Rectangle, []float32, []int) {
 
 	var loc []float32
 	outputtype := output.Type()
@@ -25,9 +41,7 @@ func (y YoloPostProcessing) extractBoxes(output *tflite.Tensor, scoreTh float32,
 	case tflite.Float32:
 		f := output.Float32s()
 		loc = make([]float32, len(f))
-		for i, v := range f {
-			loc[i] = v
-		}
+		copy(loc, f)
 	}
 
 	bboxes := []image.Rectangle{}

@@ -92,7 +92,7 @@ func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
 
 func main() {
 	labelPath := flag.String("label", "models/coco.names", "path to label file")
-	scoreTh := flag.Float64("score", 0.8, "score threshold")
+	scoreTh := flag.Float64("score", 0.5, "score threshold")
 	nmsTh := flag.Float64("nms", 0.5, "nms threshold")
 
 	flag.Parse()
@@ -113,12 +113,12 @@ func main() {
 
 	modelPathArray := flag.Args()
 	if len(modelPathArray) == 0 {
-		modelPathArray = append(modelPathArray, "models/lite-model_yolo-v5-tflite_tflite_model_1.tflite")
+		modelPathArray = append(modelPathArray, "models/yolo/lite-model_yolo-v5-tflite_tflite_model_1.tflite")
 	}
 	modelList := map[string]*Model{}
 	for _, modelPath := range modelPathArray {
 
-		model := NewModel(modelPath, YoloPostProcessing{})
+		model := NewModel(modelPath)
 		if model == nil {
 			log.Printf("cannot create interpreter model:%v", modelPath)
 		} else {

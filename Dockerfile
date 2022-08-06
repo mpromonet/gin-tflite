@@ -6,7 +6,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libedgetpu-dev
 
-ENV PATH="${PATH}:/usr/local/go/bin"
+ENV PATH "${PATH}:/usr/local/go/bin"
 
 WORKDIR /build
 COPY . .

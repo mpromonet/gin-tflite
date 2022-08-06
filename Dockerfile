@@ -1,6 +1,7 @@
 FROM ubuntu:20.04 as builder
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates build-essential cmake make golang git sudo curl gnupg \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates build-essential cmake make git sudo curl gnupg \
+    && curl https://dl.google.com/go/go1.19.linux-amd64.tar.gz | tar -xz -C /usr/local \
     && echo "deb https://packages.cloud.google.com/apt coral-edgetpu-stable main" > /etc/apt/sources.list.d/coral-edgetpu.list \
     && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
     && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libedgetpu-dev

@@ -68,22 +68,17 @@ func invokeHandler(c *gin.Context, in chan gocv.Mat, out chan []item) {
 		defer body.Close()
 
 		if err == nil {
-			if len(in) == cap(in) {
-				log.Println("input queue full, drop oldest image")
-				select {
-				case oldimg := <-in:
-					oldimg.Close()
-				default:
-				}
-			}
 			in <- img
 
-			items := <-out
-			log.Println("items:", items)
-
-			c.JSON(http.StatusOK, items)
+			items, ok := <-out
+			log.Println("items:", items, "ok:", ok)
+			if ok {
+				c.JSON(http.StatusOK, items)
+			} else {
+				c.JSON(http.StatusBadRequest, "cannot get answer from channel")
+			}
 		} else {
-			c.JSON(http.StatusBadRequest, err.Error())
+			c.JSON(http.StatusBadRequest, "cannot get image from body")
 		}
 	} else {
 		c.JSON(http.StatusBadRequest, "body is empty")
@@ -124,7 +119,7 @@ func main() {
 		} else {
 			modelList[modelPath] = model
 
-			in := make(chan gocv.Mat, 25)
+			in := make(chan gocv.Mat)
 			out := make(chan []item)
 			go model.modelWorker(float32(*scoreTh), float32(*nmsTh), labels, in, out)
 			router.POST("/invoke/"+modelPath, func(c *gin.Context) { invokeHandler(c, in, out) })

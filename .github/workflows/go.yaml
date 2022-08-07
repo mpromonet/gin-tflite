@@ -28,7 +28,6 @@ jobs:
     - name: Build
       env:
         GO111MODULE: "on"
-        GOPATH: /home/runner/go
       run: | 
         if [ -f Gopkg.toml ]; then
             curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh

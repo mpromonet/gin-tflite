@@ -3,7 +3,8 @@ gin-tflite: /usr/local/include/opencv4/opencv2/cvconfig.h lib/libtensorflowlite_
 
 /usr/local/include/opencv4/opencv2/cvconfig.h:
 	CGO_CFLAGS=-I$(PWD)/tensorflow go get -d
-	cd ${HOME}/go/pkg/mod/gocv.io/x/gocv@* && sudo -E make install
+	env
+	cd ${HOME}/go/pkg/mod/gocv.io/x/gocv@* && make install
 
 lib:
 	mkdir -p lib

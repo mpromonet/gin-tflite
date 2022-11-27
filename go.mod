@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/gin-contrib/static v0.0.1
 	github.com/gin-gonic/gin v1.8.1
-	github.com/mattn/go-tflite v1.0.2
+	github.com/mattn/go-tflite v1.0.4
 	gocv.io/x/gocv v0.31.0
 )
 

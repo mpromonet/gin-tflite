@@ -124,11 +124,7 @@ func filterOutput(bboxes []image.Rectangle, confidences []float32, classes []int
 	var items []item
 
 	if len(bboxes) > 0 {
-		indices := make([]int, len(bboxes))
-		for i := range indices {
-			indices[i] = -1
-		}
-		gocv.NMSBoxes(bboxes, confidences, scoreTh, nmsTh, indices)
+		indices := gocv.NMSBoxes(bboxes, confidences, scoreTh, nmsTh)
 
 		for _, idx := range indices {
 			if idx >= 0 {

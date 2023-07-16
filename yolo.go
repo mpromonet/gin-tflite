@@ -1,3 +1,9 @@
+/* ---------------------------------------------------------------------------
+** This software is in the public domain, furnished "as is", without technical
+** support, and with no warranty, express or implied, as to its usefulness for
+** any purpose.
+** -------------------------------------------------------------------------*/
+
 package main
 
 import (
@@ -48,6 +54,7 @@ func (y YoloPostProcessing) extractBoxesTensor(output *tflite.Tensor, scoreTh fl
 	confidences := []float32{}
 	classes := []int{}
 	if len(loc) != 0 {
+		log.Println("output dims:", output.NumDims())
 		if output.NumDims() == 3 {
 			totalSize := 1
 			for idx := 0; idx < output.NumDims(); idx++ {

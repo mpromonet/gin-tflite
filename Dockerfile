@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as builder
+FROM ubuntu:22.04 as builder
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tzdata ca-certificates build-essential cmake make git sudo curl gnupg \
     && curl https://dl.google.com/go/go1.19.linux-amd64.tar.gz | tar -xz -C /usr/local \
@@ -13,7 +13,7 @@ COPY . .
 
 RUN make
 
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 WORKDIR /app
 

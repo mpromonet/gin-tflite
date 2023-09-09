@@ -53,12 +53,12 @@
   }
 
   function process(output, input, span, url, refresh) {
-    var img = document.createElement("canvas");
+    const img = document.createElement("canvas");
     img.width = input.width || input.videoWidth;
     img.height = input.height || input.videoHeight;
     img.getContext('2d').drawImage(input, 0, 0);
 
-    var dataurl = img.toDataURL("image/jpeg");
+    const dataurl = img.toDataURL("image/jpeg");
     fetch(dataurl)
       .then(r => r.blob())
       .then(blob => invoke(output, input, span, url, blob, refresh));
@@ -129,10 +129,10 @@
     .then(r => r.json())
     .then(r => {
       r.forEach(model => {
-        var div = document.createElement("div")
-        var source = document.createElement("video")
-        var output = document.createElement("canvas")
-        var span = document.createElement("span")
+        const div = document.createElement("div")
+        const source = document.createElement("video")
+        const output = document.createElement("canvas")
+        const span = document.createElement("span")
 
         div.appendChild(document.createTextNode(model))
         div.appendChild(document.createElement('br'))

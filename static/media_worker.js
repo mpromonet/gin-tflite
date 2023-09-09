@@ -1,4 +1,3 @@
-console.info(`Worker started`);
 
 importScripts('./mp4box.all.min.js');
 
@@ -41,8 +40,7 @@ class MP4PullDemuxer  {
     const type = sample.is_sync ? "key" : "delta";
     const pts_us = (sample.cts * 1000000) / sample.timescale;
     const duration_us = (sample.duration * 1000000) / sample.timescale;
-    const ChunkType = EncodedVideoChunk;
-    return new ChunkType({
+    return new EncodedVideoChunk({
       type: type,
       timestamp: pts_us,
       duration: duration_us,
@@ -215,10 +213,9 @@ class VideoRenderer {
 
     if (frame == null) {
       console.warn('VideoRenderer.render(): no frame ');
-      return;
+    } else {
+      this.paint(frame);
     }
-
-    this.paint(frame);
   }
 
   chooseFrame(timestamp) {
@@ -295,6 +292,26 @@ class VideoRenderer {
 
   paint(frame) {
     this.canvasCtx.drawImage(frame, 0, 0, this.canvas.width, this.canvas.height);
+
+    this.canvas.convertToBlob({"type":"image/jpeg"})
+      .then(blob => fetch('/invoke/models/yolo/lite-model_yolo-v5-tflite_tflite_model_1.tflite', { method: 'POST', body: blob }))
+      .then(r => r.json())
+      .then(data => draw(data));    
+  }
+  draw(data) {
+    const context = this.canvasCtx;
+    context.strokeStyle = 'rgb(0,255,0)'
+    context.fillStyle = 'rgb(0,255,0)'
+    context.lineWidth = 2;
+    context.font = '20px serif';
+
+    if (data) {
+      data.forEach(item => {
+        context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
+        context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y))
+        context.stroke()
+      })
+    }  
   }
 }
 

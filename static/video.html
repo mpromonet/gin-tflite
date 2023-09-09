@@ -1,41 +1,54 @@
-
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
   <title>Try</title>
 </head>
+
 <body>
   <h1>Try mp4</h1>
-  
-  <input type="file" accept="video/mp4" onchange="start(this.files[0])">
+
+  <input type="file" accept="video/mp4" onchange="start(this.files[0])" multiple>
   <br>
   <canvas id="canvasEl"></canvas>
   <br>
-  
-  <script type="module">
-    import getVideoFrames from "https://deno.land/x/get_video_frames@v0.0.9/mod.js"
 
-    window.start = async function(file) {
-      let ctx = canvasEl.getContext("2d"); 
+  <script type="module">
+    let canvas = document.querySelector("canvas");
+    let offscreenCanvas = canvas.transferControlToOffscreen();
+
+    let mediaWorker = new Worker('./media_worker.js');
+
+    window.start = async function (file) {
       let videoUrl = URL.createObjectURL(file);
-      
-      await getVideoFrames({
-        videoUrl,
-        onConfig: async function(config) {
-          canvasEl.width = config.codedWidth;
-          canvasEl.height = config.codedHeight;
-        },
-        onFrame: function(frame) {
-          ctx.drawImage(frame, 0, 0, canvasEl.width, canvasEl.height);
-          frame.close();
-        },
+
+      let initDone = false;
+      if (!initDone) {
+        await new Promise(resolve => {
+          mediaWorker.postMessage(
+            {
+              command: 'initialize',
+              videoFile: videoUrl,
+              canvas: offscreenCanvas
+            },
+            { transfer: [offscreenCanvas] }
+          );
+
+          mediaWorker.addEventListener('message', (e) => {
+            console.assert(e.data.command == 'initialize-done');
+            initDone = true;
+            resolve();
+          });
+        });
+      }
+
+      mediaWorker.postMessage({
+        command: 'play'
       });
-      
-      URL.revokeObjectURL(file); // revoke video URL to prevent memory leak
-      console.log("Done.");
     }
+
   </script>
-</body>
+
 </html>

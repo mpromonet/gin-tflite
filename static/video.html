@@ -12,41 +12,49 @@
 
   <input type="file" accept="video/mp4" onchange="start(this.files[0])" multiple>
   <br>
+  <button onclick="stop()">Stop</button>
   <canvas id="canvasEl"></canvas>
-  <br>
 
   <script type="module">
     let canvas = document.querySelector("canvas");
     let offscreenCanvas = canvas.transferControlToOffscreen();
 
     let mediaWorker = new Worker('./media_worker.js');
+    let initDone = false;
+    if (!initDone) {
+      await new Promise(resolve => {
+        mediaWorker.postMessage(
+          {
+            command: 'initialize',
+            canvas: offscreenCanvas
+          },
+          { transfer: [offscreenCanvas] }
+        );
+
+        mediaWorker.addEventListener('message', (e) => {
+          console.assert(e.data.command == 'initialize-done');
+          initDone = true;
+          resolve();
+        });
+      });
+    }
 
     window.start = async function (file) {
+      window.file = file;
       let videoUrl = URL.createObjectURL(file);
 
-      let initDone = false;
-      if (!initDone) {
-        await new Promise(resolve => {
-          mediaWorker.postMessage(
-            {
-              command: 'initialize',
-              videoFile: videoUrl,
-              canvas: offscreenCanvas
-            },
-            { transfer: [offscreenCanvas] }
-          );
-
-          mediaWorker.addEventListener('message', (e) => {
-            console.assert(e.data.command == 'initialize-done');
-            initDone = true;
-            resolve();
-          });
-        });
-      }
-
       mediaWorker.postMessage({
-        command: 'play'
+        command: 'play',
+        videoFile: videoUrl        
       });
+    }
+
+    window.stop = function() {
+      if (window.file) {
+        URL.revokeObjectURL(window.file);
+        delete window.file;
+        mediaWorker.postMessage({ command: 'stop' });
+      }
     }
 
   </script>

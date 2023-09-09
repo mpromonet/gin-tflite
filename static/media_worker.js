@@ -301,17 +301,19 @@ class VideoRenderer {
 let playing = false
 let lastMediaTimeSecs = 0;
 let videoRenderer = new VideoRenderer();
+let canvas = null;
 
 self.addEventListener('message', async function(e) {
   console.info(`Worker message: ${JSON.stringify(e.data)}`);
 
   switch (e.data.command) {
     case 'initialize':
-      let videoDemuxer = new MP4PullDemuxer(e.data.videoFile);
-      await videoRenderer.initialize(videoDemuxer, e.data.canvas);
+      canvas = e.data.canvas;
       postMessage({command: 'initialize-done'});
       break;
     case 'play':
+      let videoDemuxer = new MP4PullDemuxer(e.data.videoFile);
+      await videoRenderer.initialize(videoDemuxer, canvas);
       playing = true;
       lastMediaTimeSecs = performance.now();
 
@@ -322,7 +324,7 @@ self.addEventListener('message', async function(e) {
         self.requestAnimationFrame(renderVideo);
       });
       break;
-    case 'pause':
+    case 'stop':
       playing = false;
       break;
     default:

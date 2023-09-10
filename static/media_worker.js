@@ -296,7 +296,7 @@ class VideoRenderer {
     this.canvas.convertToBlob({"type":"image/jpeg"})
       .then(blob => fetch('/invoke/models/yolo/lite-model_yolo-v5-tflite_tflite_model_1.tflite', { method: 'POST', body: blob }))
       .then(r => r.json())
-      .then(data => draw(data));    
+      .then(data => this.draw(data));    
   }
   draw(data) {
     const context = this.canvasCtx;

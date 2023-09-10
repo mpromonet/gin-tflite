@@ -141,6 +141,15 @@ func main() {
 		c.JSON(http.StatusOK, models)
 	})
 
+	router.GET("/devices", func(c *gin.Context) {
+		devices, err := edgetpu.DeviceList()
+		if err != nil {
+			log.Printf("Could not get EdgeTPU devices: %v", err)
+		} else {
+			c.JSON(http.StatusOK, devices)
+		}
+	})
+
 	// start http server
 	e := router.Run(":8080")
 	if e != nil {

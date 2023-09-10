@@ -8,7 +8,7 @@
 </head>
 
 <body>
-  <h1>Try mp4</h1>
+  <h1>Load mp4</h1>
 
   <input type="file" accept="video/mp4" onchange="start(this.files[0])" multiple>
   <br>
@@ -16,6 +16,10 @@
   <canvas id="canvasEl"></canvas>
 
   <script type="module">
+    fetch("/models")
+      .then(r => r.json())
+      .then(r => window.model = r[0]);
+
     let canvas = document.querySelector("canvas");
     let offscreenCanvas = canvas.transferControlToOffscreen();
 
@@ -45,7 +49,8 @@
 
       mediaWorker.postMessage({
         command: 'play',
-        videoFile: videoUrl        
+        videoFile: videoUrl,
+        model: window.model        
       });
     }
 

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"image"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -49,7 +48,7 @@ type item struct {
 func getImage(r io.Reader) (gocv.Mat, error) {
 	var img gocv.Mat
 	// read data
-	fileBytes, err := ioutil.ReadAll(r)
+	fileBytes, err := io.ReadAll(r)
 	if err != nil {
 		fmt.Println(err)
 	} else {

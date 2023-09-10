@@ -11,17 +11,19 @@
   <h1>Load mp4</h1>
 
   <input type="file" accept="video/mp4" onchange="start(this.files[0])" multiple>
-  <br>
-  <button onclick="stop()">Stop</button>
-  <canvas id="canvasEl"></canvas>
+  <button onclick="stop()">Stop</button> infps:<span id="infps"></span> outfps:<span id="outfps"></span>
+  <div>
+    <canvas id="canvasIn" style="display:none"></canvas>
+    <canvas id="canvasOut"></canvas>  
+  </div>
 
   <script type="module">
     fetch("/models")
       .then(r => r.json())
       .then(r => window.model = r[0]);
 
-    let canvas = document.querySelector("canvas");
-    let offscreenCanvas = canvas.transferControlToOffscreen();
+    let offscreenCanvasIn  = canvasIn.transferControlToOffscreen();
+    let offscreenCanvasOut = canvasOut.transferControlToOffscreen();
 
     let mediaWorker = new Worker('./media_worker.js');
     let initDone = false;
@@ -30,18 +32,30 @@
         mediaWorker.postMessage(
           {
             command: 'initialize',
-            canvas: offscreenCanvas
+            canvasIn: offscreenCanvasIn,
+            canvasOut: offscreenCanvasOut
           },
-          { transfer: [offscreenCanvas] }
+          { transfer: [offscreenCanvasIn, offscreenCanvasOut] }
         );
 
         mediaWorker.addEventListener('message', (e) => {
-          console.assert(e.data.command == 'initialize-done');
-          initDone = true;
-          resolve();
+          if (e.data.command == 'initialize-done') {
+            initDone = true;
+            resolve();
+          }
         });
       });
     }
+    mediaWorker.addEventListener('message', (e) => {
+      if (e.data.command == 'stats') {
+        if (e.data.infps) {
+          infps.innerText = e.data.infps;
+        }
+        if (e.data.outfps) {
+          outfps.innerText = e.data.outfps;
+        }
+      }
+    });
 
     window.start = async function (file) {
       window.file = file;

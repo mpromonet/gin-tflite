@@ -177,19 +177,25 @@ class MP4Source {
 }
 
 class VideoRenderer {
-  async initialize(demuxer, canvas) {
+  async initialize(demuxer, canvasIn, canvasOut, model) {
     this.frameBuffer = [];
     this.fillInProgress = false;
+    this.model = model;
 
     this.demuxer = demuxer;
     await this.demuxer.initialize();
     const config = this.demuxer.getDecoderConfig();
 
-    this.canvas = canvas;
-    this.canvas.width = config.displayWidth;
-    this.canvas.height = config.displayHeight;
-    this.canvasCtx = canvas.getContext('2d');
+    this.canvasIn = canvasIn;
+    this.canvasIn.width = config.displayWidth;
+    this.canvasIn.height = config.displayHeight;
+    this.lastimgtimestamp = 0;
 
+    this.canvasOut = canvasOut;
+    this.canvasOut.width = config.displayWidth;
+    this.canvasOut.height = config.displayHeight;
+    this.lastoverlaytimestamp = 0;    
+  
     this.decoder = new VideoDecoder({
       output: this.bufferFrame.bind(this),
       error: e => console.error(e),
@@ -291,18 +297,26 @@ class VideoRenderer {
   }
 
   paint(frame) {
-    this.canvasCtx.drawImage(frame, 0, 0, this.canvas.width, this.canvas.height);
+    this.canvasIn.getContext('2d').drawImage(frame, 0, 0, this.canvasIn.width, this.canvasIn.height);
+    if (this.lastimgtimestamp) {
+      postMessage({command: 'stats', infps: Math.round(1000/(performance.now() - this.lastimgtimestamp)) });    
+    }
+    this.lastimgtimestamp = performance.now();
 
-    this.canvas.convertToBlob({"type":"image/jpeg"})
-      .then(blob => fetch('/invoke/models/yolo/lite-model_yolo-v5-tflite_tflite_model_1.tflite', { method: 'POST', body: blob }))
+    const dupFrame = frame.clone();
+    this.canvasIn.convertToBlob({"type":"image/jpeg"})
+      .then(blob => fetch(`/invoke/${this.model}`, { method: 'POST', body: blob }))
       .then(r => r.json())
-      .then(data => this.draw(data));    
+      .then(data => this.draw(dupFrame, data));    
   }
-  draw(data) {
-    const context = this.canvasCtx;
+  draw(frame, data) {
+    const context = this.canvasOut.getContext('2d');
+    context.reset();
+    context.drawImage(frame, 0, 0, this.canvasIn.width, this.canvasIn.height);
+    frame.close();
     context.strokeStyle = 'rgb(0,255,0)'
     context.fillStyle = 'rgb(0,255,0)'
-    context.lineWidth = 2;
+    context.lineWidth = (this.canvasIn.height/500) || 1;
     context.font = '20px serif';
 
     if (data) {
@@ -311,26 +325,33 @@ class VideoRenderer {
         context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y))
         context.stroke()
       })
-    }  
+    }
+    
+    if (this.lastoverlaytimestamp) {
+      postMessage({command: 'stats', outfps: Math.round(1000/(performance.now() - this.lastoverlaytimestamp)) });    
+    }
+    this.lastoverlaytimestamp = performance.now();
   }
 }
 
 let playing = false
 let lastMediaTimeSecs = 0;
 let videoRenderer = new VideoRenderer();
-let canvas = null;
+let canvasIn = null;
+let canvasOut = null;
 
 self.addEventListener('message', async function(e) {
   console.info(`Worker message: ${JSON.stringify(e.data)}`);
 
   switch (e.data.command) {
     case 'initialize':
-      canvas = e.data.canvas;
+      canvasIn = e.data.canvasIn;
+      canvasOut = e.data.canvasOut;
       postMessage({command: 'initialize-done'});
       break;
     case 'play':
       let videoDemuxer = new MP4PullDemuxer(e.data.videoFile);
-      await videoRenderer.initialize(videoDemuxer, canvas);
+      await videoRenderer.initialize(videoDemuxer, canvasIn, canvasOut, e.data.model);
       playing = true;
       lastMediaTimeSecs = performance.now();
 

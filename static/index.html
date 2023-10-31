@@ -12,11 +12,16 @@
 <script>
   let current = Date.now(),fps=0;
 
+  function drawItem(context, item) {
+    context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
+    context.strokeRect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y));
+  }
+
   function draw(output, input, span, data, refresh) {
     output.width = input.width || input.videoWidth;
     output.height = input.height || input.videoHeight;
 
-    var context = output.getContext('2d');
+    const context = output.getContext('2d');
     context.strokeStyle = 'rgb(0,255,0)'
     context.fillStyle = 'rgb(0,255,0)'
     context.lineWidth = 2;
@@ -24,11 +29,7 @@
     context.drawImage(input, 0, 0);
 
     if (data) {
-      data.forEach(item => {
-        context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
-        context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y))
-        context.stroke()
-      })
+      data.forEach(item => drawItem(context, item));
     }
     if (refresh) {
       let now = Date.now()
@@ -52,13 +53,16 @@
       })
   }
 
-  function process(output, input, span, url, refresh) {
-    const img = document.createElement("canvas");
-    img.width = input.width || input.videoWidth;
-    img.height = input.height || input.videoHeight;
-    img.getContext('2d').drawImage(input, 0, 0);
+  function getDataUrl(input) {
+    const canvas = document.createElement("canvas");
+    canvas.width = input.width || input.videoWidth;
+    canvas.height = input.height || input.videoHeight;
+    canvas.getContext('2d').drawImage(input, 0, 0);
+    return canvas.toDataURL("image/jpeg");
+  }
 
-    const dataurl = img.toDataURL("image/jpeg");
+  function process(output, input, span, url, refresh) {
+    const dataurl = getDataUrl(input);
     fetch(dataurl)
       .then(r => r.blob())
       .then(blob => invoke(output, input, span, url, blob, refresh));
@@ -69,20 +73,18 @@
     source.pause();
     if (source.srcObject) {
       source.srcObject.getTracks().forEach(track => track.stop());
-      source.srcObject = null;
     }
-    if (source.src) {
-      source.src = null;
-    }
+    source.srcObject = null;
+    source.removeAttribute("src");
   }
 
   function loadFile(source, output, span, event, url) {
     stopVideo(source, span);
-    var file = event.target.files[0];
+    const file = event.target.files[0];
     if (file.type.startsWith('image/')) {
-      var reader = new FileReader();
+      const reader = new FileReader();
       reader.onload = () => {
-        var img = new Image();
+        const img = new Image();
         img.src = reader.result;
         img.onload = () => process(output, img, span, url);
       }
@@ -104,14 +106,14 @@
   }
 
   function createWebCamButton(model, source, output, span) {
-    var webcam = document.createElement("button");
+    const webcam = document.createElement("button");
     webcam.innerText = "webcam";
     webcam.onclick = (event) => captureWebcam(source, output, span, event, `/invoke/${model}`);
     return webcam;
   }
 
   function createFileButton(model, source, output, span) {
-    var input = document.createElement("input");
+    const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*,video/*";
     input.onchange = (event) => loadFile(source, output, span, event, `/invoke/${model}`);
@@ -119,33 +121,33 @@
   }
 
   function createStopButton(source, span) {
-    var button = document.createElement("button");
+    const button = document.createElement("button");
     button.innerText = "stop";
     button.onclick = (event) => stopVideo(source, span);
     return button;
   }
 
+  function createProcess(model) {
+    const div = document.createElement("div");
+    const source = document.createElement("video");
+    const output = document.createElement("canvas");
+    const span = document.createElement("span");
+
+    div.appendChild(document.createTextNode(model));
+    div.appendChild(document.createElement('br'));
+    div.appendChild(createFileButton(model, source, output, span));
+    div.appendChild(createWebCamButton(model, source, output, span));
+    div.appendChild(createStopButton(source, span));
+    div.appendChild(document.createElement('br'));
+    div.appendChild(output);
+    div.appendChild(document.createElement('br'));
+    div.appendChild(span);
+    return div;
+  } 
+
   fetch("/models")
     .then(r => r.json())
-    .then(r => {
-      r.forEach(model => {
-        const div = document.createElement("div")
-        const source = document.createElement("video")
-        const output = document.createElement("canvas")
-        const span = document.createElement("span")
-
-        div.appendChild(document.createTextNode(model))
-        div.appendChild(document.createElement('br'))
-        div.appendChild(createFileButton(model, source, output, span))
-        div.appendChild(createWebCamButton(model, source, output, span))
-        div.appendChild(createStopButton(source, span))
-        div.appendChild(document.createElement('br'))
-        div.appendChild(output)
-        div.appendChild(document.createElement('br'))
-        div.appendChild(span)
-        document.getElementById("container").appendChild(div)
-      })
-    })
+    .then(r => r.forEach(model => document.getElementById("container").appendChild(createProcess(model))))
 </script>
 
 </html>

@@ -5,16 +5,43 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
   <title>Video with webcodec</title>
+  <style>
+    body, html {
+      margin: 0;
+      height: 100%;
+    }
+    #container {
+      display: flex;
+      height: 100%;
+      flex-direction: column;
+    }
+    #header, #footer {
+      flex-shrink: 0;
+      text-align: center;
+    }
+    #content {
+      overflow: hidden;
+      flex-grow: 1;
+      margin: 0 auto;
+    }
+    #canvasOut {
+      height: 100%;
+    }
+  </style>  
 </head>
 
 <body>
-  <h1>Load mp4</h1>
-
-  <input type="file" accept="video/mp4" onchange="start(this.files[0])">
-  <button onclick="stop()">Stop</button> infps:<span id="infps"></span> outfps:<span id="outfps"></span>
-  <div>
-    <canvas id="canvasIn" style="display:none"></canvas>
-    <canvas id="canvasOut"></canvas>  
+  <div id="container">
+    <div id="header">
+      <h3>Video with webcodec</h3>
+      <input type="file" accept="video/mp4" onchange="start(this.files[0])">
+      <button onclick="stop()">Stop</button> infps:<span id="infps"></span> outfps:<span id="outfps"></span>
+    </div>
+    <div id="content">
+      <canvas id="canvasIn" style="display:none"></canvas>
+      <canvas id="canvasOut"></canvas>  
+    </div>
+    <div id="footer">xxx</div>  
   </div>
 
   <script type="module">

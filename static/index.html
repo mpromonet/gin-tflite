@@ -3,6 +3,7 @@
 
 <head>
   <title>tflite</title>
+  <script src="./tools.js"></script>
 </head>
 
 <body>
@@ -11,11 +12,6 @@
 </body>
 <script>
   let current = Date.now(),fps=0;
-
-  function drawItem(context, item) {
-    context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
-    context.strokeRect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y));
-  }
 
   function draw(output, input, span, data, refresh) {
     output.width = input.width || input.videoWidth;
@@ -28,9 +24,8 @@
     context.font = '20px serif';
     context.drawImage(input, 0, 0);
 
-    if (data) {
-      data.forEach(item => drawItem(context, item));
-    }
+    drawOverlay(context, data);
+
     if (refresh) {
       let now = Date.now()
       fps = Math.round(1000 / (now - current))

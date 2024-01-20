@@ -4,15 +4,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
+  <script src="./tools.js"></script>
   <script src="./mp4box.all.min.js"></script>
-  <title>Load mp4</title>
+  <title>Load mp4 with webcodec</title>
 </head>
 
 <body>
-  <h1>Load mp4</h1>
-
-  <input type="file" accept="video/mp4" onchange="start(this.files[0])" multiple>
-  <button onclick="stop()">Stop</button> infps:<span id="infps"></span> outfps:<span id="outfps"></span>
+  <input type="file" accept="video/mp4" onchange="start(this.files[0])">
   <div id="content">
   </div>
 
@@ -28,8 +26,10 @@
         this.readySamples = [];
         this._pending_read_resolver = null;
 
-        await this._tracksReady();
-        this._selectTrack(this.videoTrack);
+        const info = await this.source.getInfo();
+        this.videoTrack = info.videoTracks[0];
+
+        this.source.selectTrack(this.videoTrack);
       }
 
       getDecoderConfig() {
@@ -62,19 +62,7 @@
         return new Uint8Array(stream.buffer, 8);  // Remove the box header.
       }
 
-      async _tracksReady() {
-        let info = await this.source.getInfo();
-        this.videoTrack = info.videoTracks[0];
-      }
-
-      _selectTrack(track) {
-        console.assert(!this.selectedTrack, "changing tracks is not implemented");
-        this.selectedTrack = track;
-        this.source.selectTrack(track);
-      }
-
       async _readSample() {
-        console.assert(this.selectedTrack);
         console.assert(!this._pending_read_resolver);
 
         if (this.readySamples.length) {
@@ -89,9 +77,7 @@
 
       _onSamples(samples) {
         this.readySamples.push(...samples);
-
-        let firstSampleTime = samples[0].cts * 1000000 / samples[0].timescale ;
-        console.log(`adding new ${samples.length} samples (first = ${firstSampleTime}). total = ${this.readySamples.length}`);
+        console.log(`adding new ${samples.length} samples. total = ${this.readySamples.length}`);
 
         if (this._pending_read_resolver) {
           this._pending_read_resolver(this.readySamples.shift());
@@ -126,7 +112,6 @@
               return reader.read().then(appendBuffers);
             }
           }
-
           return reader.read().then(appendBuffers);
         })
 
@@ -185,34 +170,45 @@
       .then(r => window.model = r[0]);
 
     window.start = async function (file) {
-      let videoUrl = URL.createObjectURL(file);
+      const videoUrl = URL.createObjectURL(file);
 
-      let demuxer = new MP4PullDemuxer(videoUrl);
+      const demuxer = new MP4PullDemuxer(videoUrl);
       await demuxer.initialize();
       const config = demuxer.getDecoderConfig();
       console.log(config);
-      
-      let decoder = new VideoDecoder({
+      let support = await VideoDecoder.isConfigSupported(config);
+      console.assert(support.supported);
+            
+      const decoder = new VideoDecoder({
         output: frame => {
           const canvas = document.createElement("canvas");
           canvas.width = config.displayWidth;
           canvas.height = config.displayHeight;
-          canvas.getContext('2d').drawImage(frame, 0, 0);
-          content.appendChild(canvas);
+          const context = canvas.getContext('2d');
+          context.drawImage(frame, 0, 0);
           frame.close();
+
+          const dataurl = canvas.toDataURL("image/jpeg");
+          fetch(dataurl) 
+            .then(r => r.blob())
+            .then(blob => {
+              fetch(`/invoke/${window.model}`, { method: 'POST', body: blob })
+                .then(r => r.json())
+                .then(data => drawOverlay(context, data))
+                .catch((err) => console.log(err))
+                .finally(() => content.appendChild(canvas));
+            });
         },
         error: () => decoder.close(),
       });
-
-      let support = await VideoDecoder.isConfigSupported(config);
-      console.assert(support.supported);
       decoder.configure(config);
 
-      while (decoder.state != "closed") {
+      let cnt=0;
+      while ( (cnt++ < demuxer.videoTrack.nb_samples) && (decoder.state != "closed") ) {
           let chunk = await demuxer.getNextChunk();
           decoder.decode(chunk);  
       }
-      console.log("done");
+      console.log(`${cnt} frames decoded`);
     }
   </script>
 

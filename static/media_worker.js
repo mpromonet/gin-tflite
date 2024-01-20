@@ -1,5 +1,6 @@
 
 importScripts('./mp4box.all.min.js');
+importScripts('./tools.js');
 
 const FRAME_BUFFER_TARGET_SIZE = 3;
 const ENABLE_DEBUG_LOGGING = false;
@@ -319,13 +320,7 @@ class VideoRenderer {
     context.lineWidth = (this.canvasIn.height/500) || 1;
     context.font = '20px serif';
 
-    if (data) {
-      data.forEach(item => {
-        context.fillText(item.ClassName, item.Box.Min.X, item.Box.Min.Y);
-        context.rect(item.Box.Min.X, item.Box.Min.Y, (item.Box.Max.X - item.Box.Min.X), (item.Box.Max.Y - item.Box.Min.Y))
-        context.stroke()
-      })
-    }
+    drawOverlay(context, data);
     
     if (this.lastoverlaytimestamp) {
       postMessage({command: 'stats', outfps: Math.round(1000/(performance.now() - this.lastoverlaytimestamp)) });    

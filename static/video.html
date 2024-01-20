@@ -22,10 +22,13 @@
     #content {
       overflow: hidden;
       flex-grow: 1;
-      margin: 0 auto;
+      text-align: center;
     }
     #canvasOut {
       height: 100%;
+    }
+    #canvasIn {
+      display: none;
     }
   </style>  
 </head>
@@ -38,7 +41,7 @@
       <button onclick="stop()">Stop</button> infps:<span id="infps"></span> outfps:<span id="outfps"></span>
     </div>
     <div id="content">
-      <canvas id="canvasIn" style="display:none"></canvas>
+      <canvas id="canvasIn"></canvas>
       <canvas id="canvasOut"></canvas>  
     </div>
     <div id="footer">xxx</div>  

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Load video frames</title>
+  <style>
+    #content {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+      grid-gap: 1rem;
+    }
+    #content canvas {
+      height: 10rem;
+      width: 100%;
+      object-fit: contain;
+    }
+  </style>
+</head>
+
+<body>
+  <input id="selectfile" type="file" accept="video/*">
+  <div id="content">
+  </div>
+
+  <script type="module">
+    async function getVideoTrack(file) {
+      const video = document.createElement("video");
+      video.src = URL.createObjectURL(file);
+      await video.play();
+      const [track] = video.captureStream().getVideoTracks();
+      video.onended = (evt) => track.stop();
+      return track;
+    }
+
+    function readChunk(reader) {
+      reader.read().then(async({ done, value }) => {
+        if (value) {
+          const bitmap = await createImageBitmap(value);
+          value.close();
+
+          const canvas = document.createElement("canvas");
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          canvas.getContext('2d').drawImage(bitmap, 0, 0);
+
+          content.appendChild(canvas);
+        }
+        if (!done) {
+          setTimeout(()=>readChunk(reader),0);
+        }
+      });
+    }
+
+    selectfile.onchange = async function () {
+      content.replaceChildren();
+      const track = await getVideoTrack(selectfile.files[0]);
+      const processor = new MediaStreamTrackProcessor(track);
+      const reader = processor.readable.getReader();
+      readChunk(reader);
+    }
+  </script>
+
+</html>

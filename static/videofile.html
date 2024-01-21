@@ -31,9 +31,14 @@
       return track;
     }
 
-    function readChunk(reader) {
-      reader.read().then(async({ done, value }) => {
-        if (value) {
+    selectfile.onchange = async function () {
+      content.replaceChildren();
+      const track = await getVideoTrack(selectfile.files[0]);
+      const processor = new MediaStreamTrackProcessor(track);
+      const reader = processor.readable.getReader();
+
+      async function readChunk({done, value}) {
+        if (!done) {
           const bitmap = await createImageBitmap(value);
           value.close();
 
@@ -43,19 +48,11 @@
           canvas.getContext('2d').drawImage(bitmap, 0, 0);
 
           content.appendChild(canvas);
+          return reader.read().then(readChunk);
         }
-        if (!done) {
-          setTimeout(()=>readChunk(reader),0);
-        }
-      });
-    }
+      }
 
-    selectfile.onchange = async function () {
-      content.replaceChildren();
-      const track = await getVideoTrack(selectfile.files[0]);
-      const processor = new MediaStreamTrackProcessor(track);
-      const reader = processor.readable.getReader();
-      readChunk(reader);
+      reader.read().then(readChunk);
     }
   </script>
 

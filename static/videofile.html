@@ -37,22 +37,21 @@
       const processor = new MediaStreamTrackProcessor(track);
       const reader = processor.readable.getReader();
 
-      async function readChunk({done, value}) {
-        if (!done) {
-          const bitmap = await createImageBitmap(value);
-          value.close();
+      async function readChunk() {
+          const {done, value} = await reader.read();
+          if (!done) {
+              const canvas = document.createElement("canvas");
+              canvas.width = value.displayWidth;
+              canvas.height = value.displayHeight;
+              canvas.getContext('2d').drawImage(value, 0, 0);
+              value.close();
 
-          const canvas = document.createElement("canvas");
-          canvas.width = bitmap.width;
-          canvas.height = bitmap.height;
-          canvas.getContext('2d').drawImage(bitmap, 0, 0);
-
-          content.appendChild(canvas);
-          return reader.read().then(readChunk);
-        }
+              content.appendChild(canvas);
+              await readChunk();
+          }
       }
 
-      reader.read().then(readChunk);
+      await readChunk();
     }
   </script>
 

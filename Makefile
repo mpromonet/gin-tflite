@@ -1,8 +1,8 @@
 gin-tflite: /usr/local/include/opencv4/opencv2/cvconfig.h lib/libtensorflowlite_c.so $(wildcard *.go)
-	go build
+	CGO_CFLAGS="-I$(PWD)/tensorflow" CGO_LDFLAGS="-L$(PWD)/lib -Wl,-rpath=\$$ORIGIN/lib" go build
 
 /usr/local/include/opencv4/opencv2/cvconfig.h:
-	go get -d
+	CGO_CFLAGS=-I$(PWD)/tensorflow go get -d
 	env
 	cd ${HOME}/go/pkg/mod/gocv.io/x/gocv@* && make install
 

@@ -12,12 +12,6 @@
 
 package main
 
-/*
-#cgo CFLAGS: -I${SRCDIR}/tensorflow
-#cgo LDFLAGS: -L${SRCDIR}/lib -Wl,-rpath=\$$ORIGIN/lib
-*/
-import "C"
-
 import (
 	"bufio"
 	"flag"
